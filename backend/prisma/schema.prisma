@@ -1,0 +1,265 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+  STAFF
+}
+
+enum SeatCategory {
+  SILVER
+  GOLD
+  PREMIUM
+}
+
+enum ShowSeatStatus {
+  AVAILABLE
+  HELD
+  BOOKED
+}
+
+enum HoldStatus {
+  ACTIVE
+  EXPIRED
+  CONFIRMED
+  RELEASED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(CUSTOMER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings    Booking[]
+  heldSeats   ShowSeat[]         @relation("SeatHolder")
+  seatHolds   SeatHold[]
+  validations TicketValidation[] @relation("TicketValidator")
+  auditLogs   AuditLog[]
+}
+
+model Movie {
+  id          String    @id @default(uuid())
+  title       String
+  description String    @db.Text
+  duration    Int
+  language    String
+  releaseDate DateTime?
+  posterUrl   String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  genres MovieGenre[]
+  shows  Show[]
+
+  @@index([title])
+}
+
+model Genre {
+  id     String       @id @default(uuid())
+  name   String       @unique
+  movies MovieGenre[]
+}
+
+model MovieGenre {
+  movieId String
+  genreId String
+
+  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  genre Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([movieId, genreId])
+}
+
+model Theatre {
+  id        String   @id @default(uuid())
+  name      String
+  location  String
+  createdAt DateTime @default(now())
+
+  screens Screen[]
+}
+
+model Screen {
+  id        String @id @default(uuid())
+  name      String
+  theatreId String
+
+  theatre Theatre @relation(fields: [theatreId], references: [id])
+  seats   Seat[]
+  shows   Show[]
+
+  @@unique([theatreId, name])
+}
+
+model Seat {
+  id         String       @id @default(uuid())
+  screenId   String
+  row        String
+  seatNumber Int
+  category   SeatCategory
+
+  screen    Screen     @relation(fields: [screenId], references: [id])
+  showSeats ShowSeat[]
+
+  @@unique([screenId, row, seatNumber])
+}
+
+model Show {
+  id        String   @id @default(uuid())
+  movieId   String
+  screenId  String
+  startTime DateTime
+  endTime   DateTime
+  createdAt DateTime @default(now())
+
+  movie     Movie      @relation(fields: [movieId], references: [id])
+  screen    Screen     @relation(fields: [screenId], references: [id])
+  showSeats ShowSeat[]
+  bookings  Booking[]
+
+  @@index([movieId, startTime])
+  @@index([screenId, startTime])
+}
+
+model ShowSeat {
+  id            String         @id @default(uuid())
+  showId        String
+  seatId        String
+  price         Decimal        @db.Decimal(10, 2)
+  status        ShowSeatStatus @default(AVAILABLE)
+  heldById      String?
+  holdExpiresAt DateTime?
+
+  show         Show          @relation(fields: [showId], references: [id])
+  seat         Seat          @relation(fields: [seatId], references: [id])
+  heldBy       User?         @relation("SeatHolder", fields: [heldById], references: [id])
+  holds        SeatHold[]
+  bookingSeats BookingSeat[]
+
+  @@unique([showId, seatId])
+  @@index([showId, status])
+}
+
+model SeatHold {
+  id         String     @id @default(uuid())
+  showSeatId String
+  userId     String
+  expiresAt  DateTime
+  status     HoldStatus @default(ACTIVE)
+  createdAt  DateTime   @default(now())
+
+  showSeat ShowSeat @relation(fields: [showSeatId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@index([showSeatId, status])
+  @@index([expiresAt, status])
+}
+
+model Booking {
+  id               String        @id @default(uuid())
+  userId           String
+  showId           String
+  bookingReference String        @unique
+  idempotencyKey   String?       @unique
+  totalAmount      Decimal       @db.Decimal(10, 2)
+  status           BookingStatus @default(PENDING)
+  qrToken          String        @unique @default(uuid())
+  createdAt        DateTime      @default(now())
+
+  user       User              @relation(fields: [userId], references: [id])
+  show       Show              @relation(fields: [showId], references: [id])
+  seats      BookingSeat[]
+  payments   Payment[]
+  refunds    Refund[]
+  validation TicketValidation?
+
+  @@index([userId, createdAt])
+  @@index([showId, status])
+}
+
+model BookingSeat {
+  id         String  @id @default(uuid())
+  bookingId  String
+  showSeatId String
+  price      Decimal @db.Decimal(10, 2)
+
+  booking  Booking  @relation(fields: [bookingId], references: [id])
+  showSeat ShowSeat @relation(fields: [showSeatId], references: [id])
+}
+
+model Payment {
+  id                   String        @id @default(uuid())
+  bookingId            String
+  amount               Decimal       @db.Decimal(10, 2)
+  status               PaymentStatus @default(PENDING)
+  transactionReference String?       @unique
+  createdAt            DateTime      @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+}
+
+model Refund {
+  id        String       @id @default(uuid())
+  bookingId String
+  amount    Decimal      @db.Decimal(10, 2)
+  status    RefundStatus @default(PENDING)
+  createdAt DateTime     @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+}
+
+model TicketValidation {
+  id            String   @id @default(uuid())
+  bookingId     String   @unique
+  validatedById String?
+  validatedAt   DateTime @default(now())
+
+  booking     Booking @relation(fields: [bookingId], references: [id])
+  validatedBy User?   @relation("TicketValidator", fields: [validatedById], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  details   Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+  @@index([entity, entityId])
+}
