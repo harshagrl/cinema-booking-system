@@ -65,3 +65,44 @@ export const authenticate = async (req, res, next) => {
   }
 };
 
+/**
+ * Optional Authentication Middleware.
+ * If token is provided and valid, populates req.user.
+ * If token is absent or invalid, simply sets req.user = null without throwing.
+ */
+export const optionalAuthenticate = async (req, res, next) => {
+  try {
+    let token = req.cookies?.token;
+
+    if (!token && req.headers.authorization?.startsWith('Bearer ')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    if (!token) {
+      req.user = null;
+      return next();
+    }
+
+    try {
+      const decoded = verifyToken(token);
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      req.user = user || null;
+    } catch {
+      req.user = null;
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};

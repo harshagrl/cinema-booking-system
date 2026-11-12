@@ -10,8 +10,12 @@ export class AppError extends Error {
 }
 
 export class BadRequestError extends AppError {
-  constructor(message = 'Bad Request', details = null) {
-    super(message, 400, 'BAD_REQUEST', details);
+  constructor(message = 'Bad Request', codeOrDetails = 'BAD_REQUEST', details = null) {
+    if (Array.isArray(codeOrDetails) || (typeof codeOrDetails === 'object' && codeOrDetails !== null)) {
+      super(message, 400, 'BAD_REQUEST', codeOrDetails);
+    } else {
+      super(message, 400, codeOrDetails || 'BAD_REQUEST', details);
+    }
   }
 }
 
@@ -38,4 +42,3 @@ export class ConflictError extends AppError {
     super(message, 409, code);
   }
 }
-
