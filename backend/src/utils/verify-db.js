@@ -2,6 +2,9 @@ import prisma from '../config/database.js';
 
 async function main() {
   try {
+    const ver = await prisma.$queryRaw`SELECT version()`;
+    console.log('PG_VERSION:', ver[0].version);
+
     const indexes = await prisma.$queryRaw`
       SELECT indexname, tablename, indexdef 
       FROM pg_indexes 

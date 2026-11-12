@@ -17,6 +17,8 @@ enum SeatCategory {
   SILVER
   GOLD
   PREMIUM
+  REGULAR
+  RECLINER
 }
 
 enum ShowSeatStatus {
@@ -107,6 +109,8 @@ model Theatre {
   id        String   @id @default(uuid())
   name      String
   location  String
+  city      String?
+  address   String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -120,6 +124,7 @@ model Screen {
   theatreId        String
   screenType       String   @default("STANDARD")
   supportedFormats String[] @default(["2D", "3D"])
+  capacity         Int      @default(0)
   isActive         Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @default(now()) @updatedAt
@@ -137,6 +142,7 @@ model Seat {
   row        String
   seatNumber Int
   category   SeatCategory
+  isActive   Boolean      @default(true)
 
   screen    Screen     @relation(fields: [screenId], references: [id])
   showSeats ShowSeat[]

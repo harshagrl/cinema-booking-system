@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
-import { LogOut, User, Shield, Clapperboard, Film } from 'lucide-react';
+import { LogOut, User, Shield, Clapperboard, Film, Building2 } from 'lucide-react';
 
 export const Navbar = () => {
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
@@ -59,7 +59,15 @@ export const Navbar = () => {
                     className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all"
                   >
                     <Film className="w-3.5 h-3.5" />
-                    <span className="hidden md:inline">Manage Movies</span>
+                    <span className="hidden md:inline">Movies</span>
+                  </Link>
+
+                  <Link
+                    to="/admin/theatres"
+                    className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all"
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">Theatres & Screens</span>
                   </Link>
 
                   <Link

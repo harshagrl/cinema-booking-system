@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import api from '../services/api';
-import { Shield, CheckCircle2, UserCheck, AlertCircle, RefreshCw, Key } from 'lucide-react';
+import { Shield, CheckCircle2, UserCheck, AlertCircle, RefreshCw, Key, Film, Building2 } from 'lucide-react';
 
 export const AdminDashboardPage = () => {
   const { user } = useAuth();
@@ -130,6 +131,43 @@ export const AdminDashboardPage = () => {
               </span>
             </div>
           </div>
+        </div>
+
+        {/* Quick Management Navigation Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Link
+            to="/admin/movies"
+            className="p-5 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-2xl transition-all group flex items-start gap-4 shadow-lg"
+          >
+            <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 group-hover:scale-105 transition-transform">
+              <Film className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white group-hover:text-amber-400 transition-colors">
+                Movies &amp; Genres
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Catalogue management, genre taxonomies, runtime and rating configuration.
+              </p>
+            </div>
+          </Link>
+
+          <Link
+            to="/admin/theatres"
+            className="p-5 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-2xl transition-all group flex items-start gap-4 shadow-lg"
+          >
+            <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 group-hover:scale-105 transition-transform">
+              <Building2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white group-hover:text-amber-400 transition-colors">
+                Theatres &amp; Physical Seats
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Configure multiplex locations, auditoriums, seating layouts and category tiers.
+              </p>
+            </div>
+          </Link>
         </div>
 
         {/* Next Phases Notice */}

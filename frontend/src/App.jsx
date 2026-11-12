@@ -10,6 +10,7 @@ import { MovieListingPage } from './pages/MovieListingPage';
 import { MovieDetailsPage } from './pages/MovieDetailsPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminMoviesPage } from './pages/AdminMoviesPage';
+import { AdminTheatresPage } from './pages/AdminTheatresPage';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
 
 function App() {
@@ -42,6 +43,14 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['ADMIN']}>
                     <AdminMoviesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/theatres"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN']}>
+                    <AdminTheatresPage />
                   </ProtectedRoute>
                 }
               />
