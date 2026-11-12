@@ -76,8 +76,10 @@ model Movie {
   language    String
   releaseDate DateTime?
   posterUrl   String?
+  rating      String?   @default("UA")
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
 
   genres MovieGenre[]
   shows  Show[]
@@ -105,15 +107,22 @@ model Theatre {
   id        String   @id @default(uuid())
   name      String
   location  String
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   screens Screen[]
 }
 
 model Screen {
-  id        String @id @default(uuid())
-  name      String
-  theatreId String
+  id               String   @id @default(uuid())
+  name             String
+  theatreId        String
+  screenType       String   @default("STANDARD")
+  supportedFormats String[] @default(["2D", "3D"])
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
 
   theatre Theatre @relation(fields: [theatreId], references: [id])
   seats   Seat[]
@@ -141,7 +150,10 @@ model Show {
   screenId  String
   startTime DateTime
   endTime   DateTime
+  format    String   @default("2D")
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   movie     Movie      @relation(fields: [movieId], references: [id])
   screen    Screen     @relation(fields: [screenId], references: [id])
@@ -160,6 +172,7 @@ model ShowSeat {
   status        ShowSeatStatus @default(AVAILABLE)
   heldById      String?
   holdExpiresAt DateTime?
+  updatedAt     DateTime       @default(now()) @updatedAt
 
   show         Show          @relation(fields: [showId], references: [id])
   seat         Seat          @relation(fields: [seatId], references: [id])
@@ -196,6 +209,7 @@ model Booking {
   status           BookingStatus @default(PENDING)
   qrToken          String        @unique @default(uuid())
   createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @default(now()) @updatedAt
 
   user       User              @relation(fields: [userId], references: [id])
   show       Show              @relation(fields: [showId], references: [id])
@@ -209,13 +223,17 @@ model Booking {
 }
 
 model BookingSeat {
-  id         String  @id @default(uuid())
+  id         String    @id @default(uuid())
   bookingId  String
   showSeatId String
-  price      Decimal @db.Decimal(10, 2)
+  price      Decimal   @db.Decimal(10, 2)
+  releasedAt DateTime?
 
   booking  Booking  @relation(fields: [bookingId], references: [id])
   showSeat ShowSeat @relation(fields: [showSeatId], references: [id])
+
+  @@index([bookingId])
+  @@index([showSeatId])
 }
 
 model Payment {
@@ -225,6 +243,7 @@ model Payment {
   status               PaymentStatus @default(PENDING)
   transactionReference String?       @unique
   createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @default(now()) @updatedAt
 
   booking Booking @relation(fields: [bookingId], references: [id])
 }
@@ -233,8 +252,10 @@ model Refund {
   id        String       @id @default(uuid())
   bookingId String
   amount    Decimal      @db.Decimal(10, 2)
+  reason    String?
   status    RefundStatus @default(PENDING)
   createdAt DateTime     @default(now())
+  updatedAt DateTime     @default(now()) @updatedAt
 
   booking Booking @relation(fields: [bookingId], references: [id])
 }
@@ -242,6 +263,7 @@ model Refund {
 model TicketValidation {
   id            String   @id @default(uuid())
   bookingId     String   @unique
+  gate          String?
   validatedById String?
   validatedAt   DateTime @default(now())
 
