@@ -405,27 +405,34 @@ export const MovieDetailsPage = () => {
                 )}
               </div>
 
-              {/* Phase 6 Hand-off Notice */}
+              {/* Phase 6 Interactive Seat Selection Notice */}
               <div className="p-4 rounded-xl bg-amber-950/30 border border-amber-800/50 space-y-1.5 text-xs">
                 <p className="font-bold text-amber-300 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>Phase 5 Complete: Showtime Confirmed</span>
+                  <span>Real-Time Seat Selection Available</span>
                 </p>
                 <p className="text-slate-300 leading-relaxed text-[11px]">
-                  Interactive seat layout picking, temporary seat holding, and booking checkout will be unlocked in <strong>Phase 6 &amp; 7</strong>.
+                  Pick your preferred seats on an interactive screen layout. Selected seats are reserved with a 5-minute temporary hold.
                 </p>
                 <p className="text-[10px] text-emerald-400 font-semibold pt-1">
-                  ✓ Database verified: {selectedShowForModal.totalSeats} ShowSeat records ready in PostgreSQL.
+                  ✓ {selectedShowForModal.availableSeats} of {selectedShowForModal.totalSeats} seats currently available.
                 </p>
               </div>
 
-              <div className="flex justify-end pt-2 border-t border-slate-800">
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-800">
                 <button
                   onClick={() => setSelectedShowForModal(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Close
                 </button>
+                <Link
+                  to={`/shows/${selectedShowForModal.id}/seats`}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-bold transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 cursor-pointer"
+                >
+                  <Armchair className="w-4 h-4" />
+                  <span>Select Seats</span>
+                </Link>
               </div>
             </div>
           </div>

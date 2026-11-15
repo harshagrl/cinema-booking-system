@@ -192,6 +192,7 @@ model ShowSeat {
 
 model SeatHold {
   id         String     @id @default(uuid())
+  holdId     String?
   showSeatId String
   userId     String
   expiresAt  DateTime
@@ -201,6 +202,7 @@ model SeatHold {
   showSeat ShowSeat @relation(fields: [showSeatId], references: [id])
   user     User     @relation(fields: [userId], references: [id])
 
+  @@index([holdId])
   @@index([showSeatId, status])
   @@index([expiresAt, status])
 }

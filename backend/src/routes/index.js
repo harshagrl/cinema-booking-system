@@ -6,6 +6,7 @@ import genreRoutes from './genre.routes.js';
 import theatreRoutes from './theatre.routes.js';
 import screenRoutes from './screen.routes.js';
 import showRoutes from './show.routes.js';
+import holdRoutes from './hold.routes.js';
 
 const router = Router();
 
@@ -17,5 +18,6 @@ router.use('/genres', genreRoutes);
 router.use('/theatres', theatreRoutes);
 router.use('/screens', screenRoutes);
 router.use('/shows', showRoutes);
+router.use('/holds', holdRoutes);
 
 export default router;

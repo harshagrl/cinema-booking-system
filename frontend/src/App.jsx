@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { MovieListingPage } from './pages/MovieListingPage';
 import { MovieDetailsPage } from './pages/MovieDetailsPage';
+import { SeatSelectionPage } from './pages/SeatSelectionPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminMoviesPage } from './pages/AdminMoviesPage';
 import { AdminTheatresPage } from './pages/AdminTheatresPage';
@@ -26,6 +27,7 @@ function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/movies" element={<MovieListingPage />} />
               <Route path="/movies/:id" element={<MovieDetailsPage />} />
+              <Route path="/shows/:showId/seats" element={<SeatSelectionPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/unauthorized" element={<UnauthorizedPage />} />
