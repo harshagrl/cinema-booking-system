@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import api from '../services/api';
 import {
-  formatDate,
   formatDuration,
   formatTime,
   formatDateTime,
@@ -56,7 +55,7 @@ const MAX_SELECTION = 10;
 
 export const SeatSelectionPage = () => {
   const { showId } = useParams();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
   // Layout & Show data
@@ -78,7 +77,7 @@ export const SeatSelectionPage = () => {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
 
   // Load seat layout function
-  const reloadSeatLayout = useCallback(() => {
+  const reloadSeatLayout = () => {
     api.get(`/shows/${showId}/seats`)
       .then((res) => {
         if (res.success && res.data) {
@@ -88,7 +87,7 @@ export const SeatSelectionPage = () => {
       .catch((err) => {
         setError(err.message || 'Failed to load seat layout.');
       });
-  }, [showId]);
+  };
 
   // Initial load
   useEffect(() => {
@@ -158,7 +157,7 @@ export const SeatSelectionPage = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [activeHold, remainingSeconds, reloadSeatLayout]);
+  }, [activeHold, remainingSeconds]);
 
   // Auto-dismiss general feedback
   useEffect(() => {
@@ -447,7 +446,7 @@ export const SeatSelectionPage = () => {
                       const isHeldByMe = activeHold && activeHold.seats?.some((s) => s.showSeatId === seat.id);
                       const colorScheme = CATEGORY_COLORS[seat.category] || CATEGORY_COLORS.REGULAR;
 
-                      let seatClasses;
+                      let seatClasses = '';
                       let seatIcon = null;
                       let isClickable = false;
 
@@ -650,3 +649,4 @@ export const SeatSelectionPage = () => {
     </div>
   );
 };
+

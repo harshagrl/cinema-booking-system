@@ -72,3 +72,4 @@ class HoldController {
 }
 
 export default new HoldController();
+
