@@ -7,6 +7,7 @@ import theatreRoutes from './theatre.routes.js';
 import screenRoutes from './screen.routes.js';
 import showRoutes from './show.routes.js';
 import holdRoutes from './hold.routes.js';
+import bookingRoutes from './booking.routes.js';
 
 const router = Router();
 
@@ -19,5 +20,6 @@ router.use('/theatres', theatreRoutes);
 router.use('/screens', screenRoutes);
 router.use('/shows', showRoutes);
 router.use('/holds', holdRoutes);
+router.use('/bookings', bookingRoutes);
 
 export default router;

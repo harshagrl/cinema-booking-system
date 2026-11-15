@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
-import { LogOut, User, Shield, Clapperboard, Film, Building2, Calendar } from 'lucide-react';
+import { LogOut, User, Shield, Clapperboard, Film, Building2, Calendar, Ticket } from 'lucide-react';
 
 export const Navbar = () => {
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
@@ -49,6 +49,16 @@ export const Navbar = () => {
             <Film className="w-4 h-4 text-amber-500" />
             <span>Movies</span>
           </Link>
+
+          {isAuthenticated && (
+            <Link
+              to="/my-bookings"
+              className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-slate-300 hover:text-amber-400 transition-colors px-2 py-1"
+            >
+              <Ticket className="w-4 h-4 text-amber-500" />
+              <span>My Bookings</span>
+            </Link>
+          )}
 
           {isAuthenticated ? (
             <>

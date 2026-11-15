@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import api from '../services/api';
 import {
+  formatDate,
   formatDuration,
   formatTime,
   formatDateTime,
@@ -21,6 +22,11 @@ import {
   Film,
   X,
   LogIn,
+  CreditCard,
+  Check,
+  Copy,
+  ShieldCheck,
+  Ticket,
 } from 'lucide-react';
 
 const CATEGORY_COLORS = {
@@ -55,7 +61,7 @@ const MAX_SELECTION = 10;
 
 export const SeatSelectionPage = () => {
   const { showId } = useParams();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   // Layout & Show data
@@ -76,8 +82,19 @@ export const SeatSelectionPage = () => {
   // Countdown timer in seconds
   const [remainingSeconds, setRemainingSeconds] = useState(0);
 
+  // Checkout & Payment Simulation state
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState('FORM'); // 'FORM' | 'SUCCESS' | 'FAILURE'
+  const [paymentMethod, setPaymentMethod] = useState('CARD'); // 'CARD' | 'UPI' | 'NET_BANKING'
+  const [simulateResult, setSimulateResult] = useState('SUCCESS'); // 'SUCCESS' | 'FAILURE'
+  const [pendingBooking, setPendingBooking] = useState(null);
+  const [confirmedBookingResult, setConfirmedBookingResult] = useState(null);
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+  const [copiedBookingRef, setCopiedBookingRef] = useState(false);
+
   // Load seat layout function
-  const reloadSeatLayout = () => {
+  const reloadSeatLayout = useCallback(() => {
     api.get(`/shows/${showId}/seats`)
       .then((res) => {
         if (res.success && res.data) {
@@ -87,7 +104,7 @@ export const SeatSelectionPage = () => {
       .catch((err) => {
         setError(err.message || 'Failed to load seat layout.');
       });
-  };
+  }, [showId]);
 
   // Initial load
   useEffect(() => {
@@ -145,6 +162,8 @@ export const SeatSelectionPage = () => {
           clearInterval(timer);
           // Hold expired
           setActiveHold(null);
+          setShowCheckoutModal(false);
+          setPendingBooking(null);
           setFeedback({
             type: 'error',
             message: 'Your 5-minute seat hold has expired. The seats have been released.',
@@ -157,7 +176,7 @@ export const SeatSelectionPage = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [activeHold, remainingSeconds]);
+  }, [activeHold, remainingSeconds, reloadSeatLayout]);
 
   // Auto-dismiss general feedback
   useEffect(() => {
@@ -262,6 +281,66 @@ export const SeatSelectionPage = () => {
     const mins = Math.floor(secs / 60);
     const s = secs % 60;
     return `${mins.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  // Open checkout modal
+  const handleOpenCheckout = () => {
+    if (!activeHold) return;
+    setPaymentError('');
+    setCheckoutStep('FORM');
+    setShowCheckoutModal(true);
+  };
+
+  // Submit simulated payment
+  const handleProcessPayment = async () => {
+    if (!activeHold) return;
+    setPaymentSubmitting(true);
+    setPaymentError('');
+
+    try {
+      // 1. Create pending booking from active hold if not already created
+      let booking = pendingBooking;
+      if (!booking) {
+        const bookRes = await api.post('/bookings', { holdId: activeHold.holdId });
+        if (bookRes.success && bookRes.data) {
+          booking = bookRes.data;
+          setPendingBooking(booking);
+        } else {
+          throw new Error(bookRes.message || 'Failed to create booking reservation.');
+        }
+      }
+
+      // 2. Submit payment
+      const payRes = await api.post(`/bookings/${booking.id}/pay`, {
+        paymentMethod,
+        simulateResult,
+      });
+
+      if (payRes.data?.payment?.status === 'SUCCESS' || payRes.data?.isAlreadyConfirmed) {
+        setConfirmedBookingResult(payRes.data);
+        setCheckoutStep('SUCCESS');
+        setActiveHold(null);
+        setRemainingSeconds(0);
+        reloadSeatLayout();
+      } else {
+        setPaymentError(
+          payRes.data?.payment?.failureReason ||
+            'Payment simulation was declined. Your seats remain held; you may retry before your timer expires.'
+        );
+        setCheckoutStep('FAILURE');
+      }
+    } catch (err) {
+      setPaymentError(err.message || 'An error occurred during payment simulation.');
+      setCheckoutStep('FAILURE');
+    } finally {
+      setPaymentSubmitting(false);
+    }
+  };
+
+  const handleCopyRef = (ref) => {
+    navigator.clipboard?.writeText(ref);
+    setCopiedBookingRef(true);
+    setTimeout(() => setCopiedBookingRef(false), 2000);
   };
 
   // Total calculation for current selection
@@ -446,7 +525,7 @@ export const SeatSelectionPage = () => {
                       const isHeldByMe = activeHold && activeHold.seats?.some((s) => s.showSeatId === seat.id);
                       const colorScheme = CATEGORY_COLORS[seat.category] || CATEGORY_COLORS.REGULAR;
 
-                      let seatClasses = '';
+                      let seatClasses;
                       let seatIcon = null;
                       let isClickable = false;
 
@@ -611,14 +690,22 @@ export const SeatSelectionPage = () => {
 
               {/* Primary Action Button */}
               {activeHold ? (
-                <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-800/60 text-center space-y-2">
-                  <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Temporary Seat Hold Active</span>
-                  </div>
-                  <p className="text-[11px] text-slate-300 leading-relaxed">
-                    Checkout &amp; Payment Gateway integration will be unlocked in <strong>Phase 7 &amp; 8</strong>.
-                  </p>
+                <div className="space-y-3">
+                  <button
+                    onClick={handleOpenCheckout}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    <span>Proceed to Checkout</span>
+                  </button>
+
+                  <button
+                    onClick={handleReleaseHold}
+                    disabled={holdReleasing}
+                    className="w-full py-2 px-3 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-red-400 border border-slate-800 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    {holdReleasing ? 'Releasing Seats...' : 'Cancel & Release Seats'}
+                  </button>
                 </div>
               ) : isAuthenticated ? (
                 <button
@@ -645,6 +732,316 @@ export const SeatSelectionPage = () => {
             </div>
           </div>
         </div>
+
+        {/* Checkout & Simulated Payment Modal */}
+        {showCheckoutModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg p-6 space-y-6 shadow-2xl relative my-8">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">
+                      {checkoutStep === 'SUCCESS' ? 'Booking Confirmed!' : 'Simulated Checkout'}
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      {checkoutStep === 'SUCCESS'
+                        ? 'Your cinema tickets have been issued.'
+                        : 'Review booking details and simulate payment authorization.'}
+                    </p>
+                  </div>
+                </div>
+
+                {checkoutStep !== 'SUCCESS' && (
+                  <button
+                    onClick={() => setShowCheckoutModal(false)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Step: FORM */}
+              {checkoutStep === 'FORM' && (
+                <div className="space-y-5">
+                  {/* Hold Timer Alert */}
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-amber-950/40 border border-amber-800/60 text-xs text-amber-300">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
+                      <span>Seats held exclusively for:</span>
+                    </span>
+                    <span className="font-mono font-bold text-sm text-amber-400">
+                      {formatCountdown(remainingSeconds)}
+                    </span>
+                  </div>
+
+                  {/* Booking Summary Box */}
+                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-3 text-xs">
+                    <div className="flex justify-between items-start border-b border-slate-800 pb-2.5">
+                      <div>
+                        <h4 className="font-bold text-white text-sm">{show.movie.title}</h4>
+                        <p className="text-slate-400 text-[11px] mt-0.5">
+                          {show.theatre.name} • {show.screen.name} ({show.format})
+                        </p>
+                      </div>
+                      <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-bold">
+                        {show.movie.rating || 'UA'}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-slate-300 text-xs">
+                      <span className="text-slate-400">Showtime:</span>
+                      <span className="font-semibold text-amber-400">
+                        {formatDateTime(show.startTime)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-slate-300 text-xs">
+                      <span className="text-slate-400">Selected Seats:</span>
+                      <span className="font-semibold text-white">
+                        {activeHold?.seats?.map((s) => `${s.row}${s.seatNumber}`).join(', ') || 'N/A'}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-800 text-sm">
+                      <span className="font-bold text-white">Total Amount:</span>
+                      <span className="text-lg font-black text-amber-400">
+                        ₹{activeHold?.totalAmount?.toFixed(2) || '0.00'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Simulation Sandbox Notice */}
+                  <div className="p-3.5 rounded-xl bg-purple-950/30 border border-purple-800/40 text-xs text-purple-200 flex items-start gap-2.5">
+                    <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="block text-purple-300 font-bold text-[11px] uppercase tracking-wider">
+                        Simulated Payment Gateway
+                      </strong>
+                      <p className="text-[11px] text-slate-300 mt-0.5">
+                        This is a sandboxed simulation for assessment testing. No real bank accounts or cards are charged.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Payment Method Selector */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
+                      Select Payment Method
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'CARD', label: 'Card (Debit/Credit)' },
+                        { id: 'UPI', label: 'UPI / QR' },
+                        { id: 'NET_BANKING', label: 'Net Banking' },
+                      ].map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setPaymentMethod(m.id)}
+                          className={`p-2.5 rounded-xl border text-center text-xs font-bold transition-all cursor-pointer ${
+                            paymentMethod === m.id
+                              ? 'bg-amber-500/10 border-amber-500 text-amber-300 ring-1 ring-amber-500'
+                              : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Test Scenario Simulation Toggle */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
+                      Simulation Scenario (Test Toggle)
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSimulateResult('SUCCESS')}
+                        className={`p-2 rounded-xl border text-center text-xs font-bold transition-all cursor-pointer ${
+                          simulateResult === 'SUCCESS'
+                            ? 'bg-emerald-950/60 border-emerald-500 text-emerald-300 ring-1 ring-emerald-500'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800'
+                        }`}
+                      >
+                        ✓ Simulate SUCCESS
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSimulateResult('FAILURE')}
+                        className={`p-2 rounded-xl border text-center text-xs font-bold transition-all cursor-pointer ${
+                          simulateResult === 'FAILURE'
+                            ? 'bg-red-950/60 border-red-500 text-red-300 ring-1 ring-red-500'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800'
+                        }`}
+                      >
+                        ✕ Simulate FAILURE
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 pt-3 border-t border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setShowCheckoutModal(false)}
+                      className="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleProcessPayment}
+                      disabled={paymentSubmitting}
+                      className="flex-2 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {paymentSubmitting ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <CreditCard className="w-4 h-4" />
+                      )}
+                      <span>
+                        {paymentSubmitting ? 'Processing Payment...' : `Pay ₹${activeHold?.totalAmount?.toFixed(2)}`}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step: SUCCESS */}
+              {checkoutStep === 'SUCCESS' && (
+                <div className="space-y-5 text-center py-2">
+                  <div className="w-16 h-16 rounded-full bg-emerald-950/80 border border-emerald-500/60 flex items-center justify-center text-emerald-400 mx-auto shadow-lg shadow-emerald-500/20">
+                    <CheckCircle2 className="w-8 h-8" />
+                  </div>
+
+                  <div>
+                    <h4 className="text-xl font-black text-white">Payment Authorized!</h4>
+                    <p className="text-xs text-emerald-400 font-semibold mt-1">
+                      Your booking has been confirmed and seats allocated.
+                    </p>
+                  </div>
+
+                  {/* Confirmation Receipt Box */}
+                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-left space-y-2.5 text-xs">
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                      <span className="text-slate-400 text-[11px] uppercase tracking-wider font-semibold">
+                        Booking Reference:
+                      </span>
+                      <button
+                        onClick={() => handleCopyRef(confirmedBookingResult?.booking?.bookingReference)}
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-amber-400 font-mono font-bold hover:bg-slate-800 cursor-pointer"
+                      >
+                        <span>{confirmedBookingResult?.booking?.bookingReference}</span>
+                        {copiedBookingRef ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-slate-500" />}
+                      </button>
+                    </div>
+
+                    <div className="flex justify-between text-slate-300">
+                      <span className="text-slate-400">Movie:</span>
+                      <span className="font-semibold text-white">
+                        {confirmedBookingResult?.booking?.movie?.title}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-slate-300">
+                      <span className="text-slate-400">Showtime:</span>
+                      <span className="font-semibold text-amber-400">
+                        {formatDateTime(confirmedBookingResult?.booking?.show?.startTime)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-slate-300">
+                      <span className="text-slate-400">Confirmed Seats:</span>
+                      <span className="font-bold text-emerald-400">
+                        {confirmedBookingResult?.booking?.seats?.map((s) => `${s.row}${s.seatNumber}`).join(', ')}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-800 text-sm">
+                      <span className="font-bold text-white">Total Paid:</span>
+                      <span className="font-black text-amber-400">
+                        ₹{confirmedBookingResult?.payment?.amount?.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Navigation Links */}
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <Link
+                      to="/my-bookings"
+                      className="py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md shadow-amber-500/20 cursor-pointer"
+                    >
+                      <Ticket className="w-4 h-4" />
+                      <span>View My Bookings</span>
+                    </Link>
+                    <Link
+                      to="/movies"
+                      className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Film className="w-4 h-4" />
+                      <span>Browse Movies</span>
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {/* Step: FAILURE */}
+              {checkoutStep === 'FAILURE' && (
+                <div className="space-y-5 text-center py-2">
+                  <div className="w-16 h-16 rounded-full bg-red-950/80 border border-red-500/60 flex items-center justify-center text-red-400 mx-auto shadow-lg shadow-red-500/20">
+                    <AlertCircle className="w-8 h-8" />
+                  </div>
+
+                  <div>
+                    <h4 className="text-xl font-black text-white">Payment Declined</h4>
+                    <p className="text-xs text-red-300 mt-1 max-w-sm mx-auto">
+                      {paymentError || 'Payment simulation failed. Your seats remain held; you may retry.'}
+                    </p>
+                  </div>
+
+                  {/* Retry Notice */}
+                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 space-y-1.5 text-left">
+                    <div className="flex items-center gap-1.5 text-amber-400 font-semibold">
+                      <Clock className="w-4 h-4" />
+                      <span>Hold Window Remaining: {formatCountdown(remainingSeconds)}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      As per policy, your selected seats will remain held until the 5-minute timer expires. You may retry payment or switch payment methods.
+                    </p>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCheckoutModal(false)}
+                      className="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSimulateResult('SUCCESS');
+                        setCheckoutStep('FORM');
+                      }}
+                      className="flex-2 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-all shadow-md shadow-amber-500/20 cursor-pointer"
+                    >
+                      Retry Payment
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

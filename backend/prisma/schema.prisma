@@ -32,10 +32,12 @@ enum HoldStatus {
   EXPIRED
   CONFIRMED
   RELEASED
+  CONSUMED
 }
 
 enum BookingStatus {
   PENDING
+  PENDING_PAYMENT
   CONFIRMED
   CANCELLED
   EXPIRED
@@ -211,10 +213,11 @@ model Booking {
   id               String        @id @default(uuid())
   userId           String
   showId           String
+  holdId           String?       @unique
   bookingReference String        @unique
   idempotencyKey   String?       @unique
   totalAmount      Decimal       @db.Decimal(10, 2)
-  status           BookingStatus @default(PENDING)
+  status           BookingStatus @default(PENDING_PAYMENT)
   qrToken          String        @unique @default(uuid())
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @default(now()) @updatedAt
@@ -249,11 +252,17 @@ model Payment {
   bookingId            String
   amount               Decimal       @db.Decimal(10, 2)
   status               PaymentStatus @default(PENDING)
+  paymentMethod        String?       @default("CARD")
+  idempotencyKey       String?       @unique
+  failureReason        String?
   transactionReference String?       @unique
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @default(now()) @updatedAt
 
   booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@index([bookingId])
+  @@index([status])
 }
 
 model Refund {

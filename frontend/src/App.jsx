@@ -9,6 +9,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { MovieListingPage } from './pages/MovieListingPage';
 import { MovieDetailsPage } from './pages/MovieDetailsPage';
 import { SeatSelectionPage } from './pages/SeatSelectionPage';
+import { MyBookingsPage } from './pages/MyBookingsPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminMoviesPage } from './pages/AdminMoviesPage';
 import { AdminTheatresPage } from './pages/AdminTheatresPage';
@@ -31,6 +32,16 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
+              {/* Customer Bookings & Reservations */}
+              <Route
+                path="/my-bookings"
+                element={
+                  <ProtectedRoute allowedRoles={['CUSTOMER', 'STAFF', 'ADMIN']}>
+                    <MyBookingsPage />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Role-Protected Admin Routes */}
               <Route
