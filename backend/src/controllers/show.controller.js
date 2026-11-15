@@ -74,7 +74,7 @@ class ShowController {
    */
   async createShow(req, res, next) {
     try {
-      const show = await ShowService.createShow(req.body);
+      const show = await ShowService.createShow(req.body, req.user);
       res.status(201).json({
         success: true,
         message: 'Show scheduled successfully',
@@ -92,7 +92,7 @@ class ShowController {
   async updateShow(req, res, next) {
     try {
       const { id } = req.params;
-      const show = await ShowService.updateShow(id, req.body);
+      const show = await ShowService.updateShow(id, req.body, req.user);
       res.status(200).json({
         success: true,
         message: 'Show updated successfully',
@@ -111,7 +111,7 @@ class ShowController {
     try {
       const { id } = req.params;
       const { isActive } = req.body;
-      const show = await ShowService.updateShowStatus(id, isActive);
+      const show = await ShowService.updateShowStatus(id, isActive, req.user);
       res.status(200).json({
         success: true,
         message: `Show ${show.isActive ? 'activated' : 'deactivated'} successfully`,

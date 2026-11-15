@@ -290,22 +290,31 @@ model Payment {
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @default(now()) @updatedAt
 
-  booking Booking @relation(fields: [bookingId], references: [id])
+  booking Booking  @relation(fields: [bookingId], references: [id])
+  refunds Refund[]
 
   @@index([bookingId])
   @@index([status])
 }
 
 model Refund {
-  id        String       @id @default(uuid())
-  bookingId String
-  amount    Decimal      @db.Decimal(10, 2)
-  reason    String?
-  status    RefundStatus @default(PENDING)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @default(now()) @updatedAt
+  id              String       @id @default(uuid())
+  bookingId       String
+  paymentId       String?
+  refundReference String?      @unique
+  amount          Decimal      @db.Decimal(10, 2)
+  reason          String?
+  status          RefundStatus @default(PENDING)
+  processedAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @default(now()) @updatedAt
 
-  booking Booking @relation(fields: [bookingId], references: [id])
+  booking Booking  @relation(fields: [bookingId], references: [id])
+  payment Payment? @relation(fields: [paymentId], references: [id])
+
+  @@index([bookingId])
+  @@index([paymentId])
+  @@index([status])
 }
 
 model TicketValidation {
@@ -332,4 +341,6 @@ model AuditLog {
 
   @@index([createdAt])
   @@index([entity, entityId])
+  @@index([userId])
+  @@index([action])
 }

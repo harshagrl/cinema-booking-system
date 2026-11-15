@@ -24,6 +24,9 @@ import {
   Printer,
   X,
   Sparkles,
+  RotateCcw,
+  Ban,
+  ShieldAlert,
 } from 'lucide-react';
 
 export const MyBookingsPage = () => {
@@ -38,6 +41,13 @@ export const MyBookingsPage = () => {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [ticketLoading, setTicketLoading] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
+
+  // Booking Cancellation State
+  const [cancellingBooking, setCancellingBooking] = useState(null);
+  const [cancelReason, setCancelReason] = useState('Change of schedule / plans');
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState(null);
+  const [cancelSuccessMsg, setCancelSuccessMsg] = useState(null);
 
   // Fetch bookings on initial mount
   useEffect(() => {
@@ -110,6 +120,35 @@ export const MyBookingsPage = () => {
     setTimeout(() => setCopiedToken(false), 2000);
   };
 
+  // Submit booking cancellation request
+  const handleConfirmCancel = async () => {
+    if (!cancellingBooking) return;
+    setCancelLoading(true);
+    setCancelError(null);
+    try {
+      const res = await api.post(`/bookings/${cancellingBooking.id}/cancel`, {
+        reason: cancelReason,
+      });
+      if (res.success && res.data?.booking) {
+        setBookings((prev) =>
+          prev.map((b) => (b.id === cancellingBooking.id ? res.data.booking : b))
+        );
+        const refundAmt = res.data.refund?.amount
+          ? `₹${Number(res.data.refund.amount).toFixed(2)}`
+          : 'Full amount';
+        setCancelSuccessMsg(
+          `Booking ${cancellingBooking.bookingReference} has been successfully cancelled. ${refundAmt} has been refunded to your simulated payment method.`
+        );
+        setCancellingBooking(null);
+        setTimeout(() => setCancelSuccessMsg(null), 8000);
+      }
+    } catch (err) {
+      setCancelError(err.message || 'Failed to cancel booking.');
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
   // Filter bookings based on activeTab
   const now = new Date();
   const filteredBookings = bookings.filter((b) => {
@@ -129,10 +168,13 @@ export const MyBookingsPage = () => {
       return b.status === 'PENDING_PAYMENT' || b.status === 'PENDING';
     }
 
+    if (activeTab === 'cancelled') {
+      return b.status === 'CANCELLED';
+    }
+
     if (activeTab === 'failed') {
       return (
         b.status === 'EXPIRED' ||
-        b.status === 'CANCELLED' ||
         b.latestPayment?.status === 'FAILED'
       );
     }
@@ -218,6 +260,22 @@ export const MyBookingsPage = () => {
           </div>
         </div>
 
+        {/* Cancellation Success Banner */}
+        {cancelSuccessMsg && (
+          <div className="p-4 rounded-2xl bg-emerald-950/60 border border-emerald-800/80 text-emerald-300 flex items-center justify-between gap-3 text-xs shadow-lg animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{cancelSuccessMsg}</span>
+            </div>
+            <button
+              onClick={() => setCancelSuccessMsg(null)}
+              className="p-1 rounded hover:bg-emerald-900/50 text-emerald-400 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Filter Tabs (hidden during print) */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin print:hidden">
           {[
@@ -225,6 +283,7 @@ export const MyBookingsPage = () => {
             { id: 'upcoming', label: 'Upcoming Shows' },
             { id: 'past', label: 'Past Shows' },
             { id: 'pending', label: 'Pending Payment' },
+            { id: 'cancelled', label: 'Cancelled & Refunded' },
             { id: 'failed', label: 'Failed / Expired' },
           ].map((tab) => (
             <button
@@ -464,6 +523,22 @@ export const MyBookingsPage = () => {
                       </div>
                     )}
 
+                    {/* Refund Status if Cancelled */}
+                    {b.status === 'CANCELLED' && b.latestRefund && (
+                      <div className="text-left md:text-right text-[11px] space-y-0.5 bg-rose-950/20 border border-rose-900/30 rounded-xl p-2 w-full">
+                        <div className="flex items-center md:justify-end gap-1 text-rose-400 font-bold">
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Simulated Refund</span>
+                        </div>
+                        <span className="text-white font-mono font-bold block">
+                          ₹{b.latestRefund.amount?.toFixed(2)}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono block truncate">
+                          Ref: {b.latestRefund.refundReference}
+                        </span>
+                      </div>
+                    )}
+
                     {/* Actions */}
                     {b.status === 'PENDING_PAYMENT' ? (
                       <button
@@ -474,16 +549,53 @@ export const MyBookingsPage = () => {
                         <span>Complete Payment</span>
                       </button>
                     ) : (
-                      b.status === 'CONFIRMED' &&
-                      b.tickets &&
-                      b.tickets.length > 0 && (
-                        <button
-                          onClick={() => handleViewTicket(b.tickets[0].id)}
-                          className="w-full px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <QrCode className="w-3.5 h-3.5" />
-                          <span>View Digital Ticket</span>
-                        </button>
+                      b.status === 'CONFIRMED' && (
+                        <div className="w-full space-y-2">
+                          {b.tickets && b.tickets.length > 0 && (
+                            <button
+                              onClick={() => handleViewTicket(b.tickets[0].id)}
+                              className="w-full px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <QrCode className="w-3.5 h-3.5" />
+                              <span>View Digital Ticket</span>
+                            </button>
+                          )}
+
+                          {(() => {
+                            const showStart = b.show?.startTime ? new Date(b.show.startTime) : null;
+                            const isShowPast = showStart && showStart <= now;
+                            const cutoffMs = 2 * 60 * 60 * 1000;
+                            const isWithinCutoff =
+                              showStart && showStart.getTime() - now.getTime() < cutoffMs;
+                            const hasUsedTicket = (b.tickets || []).some((t) => t.status === 'USED');
+                            const canCancel = !isShowPast && !isWithinCutoff && !hasUsedTicket;
+
+                            if (canCancel) {
+                              return (
+                                <button
+                                  onClick={() => {
+                                    setCancellingBooking(b);
+                                    setCancelError(null);
+                                  }}
+                                  className="w-full px-3 py-1.5 rounded-xl bg-red-950/30 hover:bg-red-950/60 text-red-300 border border-red-800/50 hover:border-red-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                >
+                                  <Ban className="w-3 h-3 text-red-400" />
+                                  <span>Cancel Booking</span>
+                                </button>
+                              );
+                            }
+
+                            if (isWithinCutoff && !isShowPast) {
+                              return (
+                                <span className="text-[10px] text-amber-500/80 font-medium text-center md:text-right block w-full">
+                                  Cancellation closed (&lt; 2h to show)
+                                </span>
+                              );
+                            }
+
+                            return null;
+                          })()}
+                        </div>
                       )
                     )}
                   </div>
@@ -630,6 +742,123 @@ export const MyBookingsPage = () => {
                   </div>
                 </>
               ) : null}
+            </div>
+          </div>
+        )}
+
+        {/* Cancellation Confirmation Dialog Modal */}
+        {cancellingBooking && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-slate-900 border border-red-900/60 rounded-3xl w-full max-w-lg p-6 sm:p-7 space-y-5 shadow-2xl relative my-8 animate-fadeIn">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2 text-red-400 font-bold text-sm">
+                  <ShieldAlert className="w-5 h-5 text-red-400" />
+                  <span>Confirm Booking Cancellation</span>
+                </div>
+                <button
+                  onClick={() => setCancellingBooking(null)}
+                  disabled={cancelLoading}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Booking Details Snapshot */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+                <div className="flex items-center justify-between font-mono">
+                  <span className="text-slate-400">Booking Reference:</span>
+                  <span className="text-amber-400 font-bold">{cancellingBooking.bookingReference}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Movie:</span>
+                  <span className="text-white font-semibold">{cancellingBooking.movie?.title}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Showtime:</span>
+                  <span className="text-slate-300">
+                    {formatDate(cancellingBooking.show?.startTime)} at {formatTime(cancellingBooking.show?.startTime)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Seats Reserved:</span>
+                  <span className="text-amber-400 font-bold">{cancellingBooking.seatSummary}</span>
+                </div>
+                <div className="pt-2 border-t border-slate-800 flex items-center justify-between font-bold">
+                  <span className="text-slate-300">Refund Amount (100%):</span>
+                  <span className="text-emerald-400 text-sm">₹{cancellingBooking.totalAmount?.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Policy Explanation */}
+              <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-800/40 text-amber-200/90 text-xs space-y-1.5">
+                <p className="font-semibold text-amber-400">
+                  Cancellation Policy & Rules:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-[11px] text-amber-200/80">
+                  <li>Full simulated refund of ₹{cancellingBooking.totalAmount?.toFixed(2)} will be issued immediately.</li>
+                  <li>Reserved seats will be released and returned to available inventory.</li>
+                  <li>All digital QR entry tickets will be marked CANCELLED and rejected at the gate.</li>
+                  <li>This cancellation is permanent and cannot be reversed.</li>
+                </ul>
+              </div>
+
+              {/* Cancellation Reason Selection */}
+              <div className="space-y-1.5 text-xs">
+                <label className="text-slate-300 font-semibold block">Reason for Cancellation (optional):</label>
+                <select
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  disabled={cancelLoading}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-amber-500"
+                >
+                  <option value="Change of schedule / plans">Change of schedule / plans</option>
+                  <option value="Booked wrong movie or showtime">Booked wrong movie or showtime</option>
+                  <option value="Selected incorrect seats">Selected incorrect seats</option>
+                  <option value="Unable to attend">Unable to attend</option>
+                  <option value="Personal emergency">Personal emergency</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              {/* Error Alert */}
+              {cancelError && (
+                <div className="p-3 rounded-xl bg-red-950/50 border border-red-800 text-red-300 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{cancelError}</span>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCancellingBooking(null)}
+                  disabled={cancelLoading}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Keep Booking
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmCancel}
+                  disabled={cancelLoading}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all shadow-md shadow-red-900/30 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {cancelLoading ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Cancelling...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Ban className="w-3.5 h-3.5" />
+                      <span>Yes, Cancel Booking</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         )}

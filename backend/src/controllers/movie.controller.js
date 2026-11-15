@@ -40,7 +40,7 @@ class MovieController {
    */
   async createMovie(req, res, next) {
     try {
-      const movie = await movieService.createMovie(req.body);
+      const movie = await movieService.createMovie(req.body, req.user);
       res.status(201).json({
         success: true,
         message: 'Movie created successfully',
@@ -58,7 +58,7 @@ class MovieController {
   async updateMovie(req, res, next) {
     try {
       const { id } = req.params;
-      const movie = await movieService.updateMovie(id, req.body);
+      const movie = await movieService.updateMovie(id, req.body, req.user);
       res.status(200).json({
         success: true,
         message: 'Movie updated successfully',
@@ -77,7 +77,7 @@ class MovieController {
     try {
       const { id } = req.params;
       const { isActive } = req.body;
-      const movie = await movieService.updateMovieStatus(id, isActive);
+      const movie = await movieService.updateMovieStatus(id, isActive, req.user);
       res.status(200).json({
         success: true,
         message: `Movie '${movie.title}' has been ${isActive ? 'activated' : 'deactivated'} successfully`,

@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
-import { LogOut, User, Shield, Clapperboard, Film, Building2, Calendar, Ticket, QrCode } from 'lucide-react';
+import { LogOut, User, Shield, Clapperboard, Film, Building2, Calendar, Ticket, QrCode, ShieldAlert } from 'lucide-react';
 
 export const Navbar = () => {
   const { user, isAuthenticated, isAdmin, isStaff, logout } = useAuth();
@@ -96,6 +96,14 @@ export const Navbar = () => {
                   >
                     <Calendar className="w-3.5 h-3.5" />
                     <span className="hidden md:inline">Shows</span>
+                  </Link>
+
+                  <Link
+                    to="/admin/audit-logs"
+                    className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-purple-950/60 text-purple-300 border border-purple-800/40 hover:bg-purple-900/80 transition-all"
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                    <span className="hidden lg:inline">Audit</span>
                   </Link>
 
                   <Link

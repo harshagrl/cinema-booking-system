@@ -113,6 +113,46 @@ class BookingController {
       next(error);
     }
   }
+
+  /**
+   * POST /api/bookings/:id/cancel
+   * Customer: Cancel an eligible confirmed booking and receive simulated refund
+   */
+  async cancelBooking(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body || {};
+      const result = await BookingService.cancelBooking(req.user, id, { reason });
+
+      res.status(200).json({
+        success: true,
+        message: result.message,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/bookings/:id/refunds
+   * Customer/Admin/Staff: Retrieve refund history for a booking
+   */
+  async getBookingRefunds(req, res, next) {
+    try {
+      const { id } = req.params;
+      const refunds = await BookingService.getBookingRefunds(req.user, id);
+      res.status(200).json({
+        success: true,
+        data: {
+          bookingId: id,
+          refunds,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const bookingController = new BookingController();

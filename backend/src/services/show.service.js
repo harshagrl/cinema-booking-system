@@ -1,5 +1,6 @@
 import prisma from '../config/database.js';
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
+import { AuditService } from './audit.service.js';
 
 export const DEFAULT_CATEGORY_PRICES = {
   REGULAR: 200,
@@ -345,7 +346,7 @@ export class ShowService {
    * Implements robust PostgreSQL row-level concurrency protection:
    * Locks Screen row with SELECT ... FOR UPDATE within a transaction to prevent concurrent overlaps
    */
-  static async createShow(data) {
+  static async createShow(data, user = null) {
     return prisma.$transaction(async (tx) => {
       // 1. Verify Movie
       const movie = await tx.movie.findUnique({
@@ -494,6 +495,20 @@ export class ShowService {
         data: showSeatsData,
       });
 
+      // Audit log show creation
+      await AuditService.log(tx, {
+        actorId: user?.id,
+        action: 'SHOW_CREATED',
+        entityType: 'SHOW',
+        entityId: show.id,
+        metadata: {
+          movieId: show.movieId,
+          screenId: show.screenId,
+          format: show.format,
+          startTime: show.startTime,
+        },
+      });
+
       return {
         ...show,
         movie: {
@@ -527,7 +542,7 @@ export class ShowService {
   /**
    * Admin updates an existing show
    */
-  static async updateShow(id, data) {
+  static async updateShow(id, data, user = null) {
     return prisma.$transaction(async (tx) => {
       const show = await tx.show.findUnique({
         where: { id },
@@ -637,6 +652,20 @@ export class ShowService {
         }
       }
 
+      // Audit log show update
+      await AuditService.log(tx, {
+        actorId: user?.id,
+        action: 'SHOW_UPDATED',
+        entityType: 'SHOW',
+        entityId: updatedShow.id,
+        metadata: {
+          screenId: updatedShow.screenId,
+          startTime: updatedShow.startTime,
+          format: updatedShow.format,
+          isActive: updatedShow.isActive,
+        },
+      });
+
       return updatedShow;
     });
   }
@@ -644,15 +673,25 @@ export class ShowService {
   /**
    * Admin toggles show active status (soft toggle)
    */
-  static async updateShowStatus(id, isActive) {
+  static async updateShowStatus(id, isActive, user = null) {
     const show = await prisma.show.findUnique({ where: { id } });
     if (!show) {
       throw new NotFoundError('Show not found');
     }
 
-    return prisma.show.update({
+    const updated = await prisma.show.update({
       where: { id },
       data: { isActive },
     });
+
+    await AuditService.log(prisma, {
+      actorId: user?.id,
+      action: 'SHOW_STATUS_CHANGED',
+      entityType: 'SHOW',
+      entityId: id,
+      metadata: { isActive },
+    });
+
+    return updated;
   }
 }

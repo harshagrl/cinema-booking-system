@@ -40,7 +40,7 @@ class TheatreController {
    */
   async createTheatre(req, res, next) {
     try {
-      const theatre = await TheatreService.createTheatre(req.body);
+      const theatre = await TheatreService.createTheatre(req.body, req.user);
       res.status(201).json({
         success: true,
         message: 'Theatre created successfully',
@@ -58,7 +58,7 @@ class TheatreController {
   async updateTheatre(req, res, next) {
     try {
       const { id } = req.params;
-      const theatre = await TheatreService.updateTheatre(id, req.body);
+      const theatre = await TheatreService.updateTheatre(id, req.body, req.user);
       res.status(200).json({
         success: true,
         message: 'Theatre updated successfully',
@@ -77,7 +77,7 @@ class TheatreController {
     try {
       const { id } = req.params;
       const { isActive } = req.body;
-      const theatre = await TheatreService.updateTheatreStatus(id, isActive);
+      const theatre = await TheatreService.updateTheatreStatus(id, isActive, req.user);
       res.status(200).json({
         success: true,
         message: `Theatre ${theatre.isActive ? 'activated' : 'deactivated'} successfully`,

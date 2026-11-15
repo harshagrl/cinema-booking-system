@@ -14,6 +14,7 @@ import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminMoviesPage } from './pages/AdminMoviesPage';
 import { AdminTheatresPage } from './pages/AdminTheatresPage';
 import { AdminShowsPage } from './pages/AdminShowsPage';
+import { AdminAuditLogsPage } from './pages/AdminAuditLogsPage';
 import { StaffTicketValidationPage } from './pages/StaffTicketValidationPage';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
 
@@ -74,6 +75,14 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['ADMIN']}>
                     <AdminShowsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/audit-logs"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN']}>
+                    <AdminAuditLogsPage />
                   </ProtectedRoute>
                 }
               />

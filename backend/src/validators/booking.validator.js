@@ -38,3 +38,11 @@ export const bookingIdParamSchema = z.object({
     .string({ required_error: 'Booking ID is required' })
     .regex(uuidRegex, 'Invalid Booking ID format'),
 });
+
+export const cancelBookingSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .max(500, 'Cancellation reason cannot exceed 500 characters')
+    .optional(),
+});

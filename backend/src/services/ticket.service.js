@@ -11,6 +11,7 @@ import {
   hashQrToken,
   generateQrDataUrl,
 } from '../utils/qr.js';
+import { AuditService } from './audit.service.js';
 
 const ticketIncludeQuery = {
   booking: {
@@ -383,6 +384,20 @@ export class TicketService {
           validatedById: staffUser.id,
         },
         include: ticketIncludeQuery,
+      });
+
+      // Audit log the successful admission validation
+      await AuditService.log(tx, {
+        actorId: staffUser.id,
+        action: 'TICKET_VALIDATED',
+        entityType: 'TICKET',
+        entityId: validatedTicket.id,
+        metadata: {
+          ticketNumber: validatedTicket.ticketNumber,
+          bookingId: validatedTicket.bookingId,
+          showId: show.id,
+          validatedAt: now,
+        },
       });
 
       const formatted = await formatTicketResponse(validatedTicket, false);

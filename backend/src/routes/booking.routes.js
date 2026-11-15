@@ -5,6 +5,7 @@ import { validate } from '../validators/auth.validator.js';
 import {
   createBookingSchema,
   simulatePaymentSchema,
+  cancelBookingSchema,
 } from '../validators/booking.validator.js';
 
 const router = Router();
@@ -44,6 +45,21 @@ router.get(
   '/:id/payment',
   authenticate,
   (req, res, next) => bookingController.getBookingPayments(req, res, next)
+);
+
+// Cancel booking and process simulated refund
+router.post(
+  '/:id/cancel',
+  authenticate,
+  validate(cancelBookingSchema),
+  (req, res, next) => bookingController.cancelBooking(req, res, next)
+);
+
+// Get refund history for a booking
+router.get(
+  '/:id/refunds',
+  authenticate,
+  (req, res, next) => bookingController.getBookingRefunds(req, res, next)
 );
 
 export default router;

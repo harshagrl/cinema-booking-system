@@ -6,6 +6,11 @@ import {
   ForbiddenError,
 } from '../utils/errors.js';
 import { TicketService } from './ticket.service.js';
+import {
+  CANCELLATION_CONFIG,
+  generateRefundReference,
+} from '../config/cancellation.config.js';
+import { AuditService } from './audit.service.js';
 
 const bookingIncludeQuery = {
   show: {
@@ -34,6 +39,9 @@ const bookingIncludeQuery = {
   payments: {
     orderBy: { createdAt: 'desc' },
   },
+  refunds: {
+    orderBy: { createdAt: 'desc' },
+  },
   tickets: {
     include: {
       bookingSeat: {
@@ -58,7 +66,7 @@ export const formatBookingResponse = (b) => {
   if (!b) return null;
 
   const seats = (b.seats || [])
-    .filter((bs) => bs.releasedAt === null)
+    .filter((bs) => bs.releasedAt === null || b.status === 'CANCELLED')
     .map((bs) => ({
       bookingSeatId: bs.id,
       showSeatId: bs.showSeatId,
@@ -66,6 +74,7 @@ export const formatBookingResponse = (b) => {
       seatNumber: bs.showSeat?.seat?.seatNumber || 0,
       category: bs.showSeat?.seat?.category || 'REGULAR',
       price: Number(bs.price),
+      releasedAt: bs.releasedAt,
     }))
     .sort((a, b) => {
       if (a.row !== b.row) return a.row.localeCompare(b.row);
@@ -80,6 +89,16 @@ export const formatBookingResponse = (b) => {
     transactionReference: p.transactionReference,
     failureReason: p.failureReason,
     createdAt: p.createdAt,
+  }));
+
+  const refunds = (b.refunds || []).map((r) => ({
+    id: r.id,
+    amount: Number(r.amount),
+    status: r.status,
+    refundReference: r.refundReference,
+    reason: r.reason,
+    processedAt: r.processedAt,
+    createdAt: r.createdAt,
   }));
 
   return {
@@ -131,6 +150,8 @@ export const formatBookingResponse = (b) => {
     seatSummary: seats.map((s) => `${s.row}${s.seatNumber}`).join(', '),
     payments,
     latestPayment: payments[0] || null,
+    refunds,
+    latestRefund: refunds[0] || null,
     tickets: (b.tickets || []).map((t) => ({
       id: t.id,
       ticketNumber: t.ticketNumber,
@@ -627,6 +648,267 @@ export class BookingService {
       transactionReference: p.transactionReference,
       failureReason: p.failureReason,
       createdAt: p.createdAt,
+    }));
+  }
+
+  /**
+   * Cancel an eligible confirmed booking, release seats, invalidate tickets,
+   * issue a simulated full refund, and persist audit logs in an atomic transaction.
+   */
+  static async cancelBooking(actingUser, bookingId, { reason } = {}) {
+    if (!actingUser) {
+      throw new ForbiddenError('Authentication required to cancel bookings');
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      // 1. Lock the booking row with row-level lock
+      const [lockedBooking] = await tx.$queryRaw`
+        SELECT b.id, b.status, b."userId", b."showId", b."totalAmount", b."holdId", b."bookingReference"
+        FROM "Booking" b
+        WHERE b.id = ${bookingId}
+        FOR UPDATE
+      `;
+
+      if (!lockedBooking) {
+        throw new NotFoundError('Booking not found', 'BOOKING_NOT_FOUND');
+      }
+
+      // 2. Authorization check:
+      // Customers can only cancel their own bookings.
+      // Staff and Admin must not be able to cancel customer bookings through customer endpoints.
+      if (lockedBooking.userId !== actingUser.id) {
+        throw new ForbiddenError(
+          'You are not authorized to cancel this booking. Customers may only cancel their own reservations.',
+          'FORBIDDEN'
+        );
+      }
+
+      // 3. State eligibility checks
+      if (lockedBooking.status === 'CANCELLED') {
+        throw new BadRequestError('This booking has already been cancelled', 'ALREADY_CANCELLED');
+      }
+
+      if (lockedBooking.status !== 'CONFIRMED') {
+        throw new BadRequestError(
+          `Only CONFIRMED bookings with successful payment can be cancelled (current status: ${lockedBooking.status})`,
+          'BOOKING_NOT_ELIGIBLE'
+        );
+      }
+
+      // 4. Fetch full relations inside transaction
+      const booking = await tx.booking.findUnique({
+        where: { id: lockedBooking.id },
+        include: {
+          show: true,
+          payments: {
+            where: { status: 'SUCCESS' },
+            orderBy: { createdAt: 'desc' },
+          },
+          seats: {
+            where: { releasedAt: null },
+            include: { showSeat: true },
+          },
+          tickets: true,
+          refunds: true,
+        },
+      });
+
+      const now = new Date();
+      const showStartTime = new Date(booking.show.startTime);
+
+      // 5. Verify no tickets have already been scanned/used
+      const usedTicket = booking.tickets.find((t) => t.status === 'USED');
+      if (usedTicket) {
+        throw new BadRequestError(
+          `Cannot cancel booking because ticket ${usedTicket.ticketNumber} has already been scanned and used for admission`,
+          'TICKET_ALREADY_USED'
+        );
+      }
+
+      // 6. Prevent cancellation after showtime begins
+      if (now >= showStartTime) {
+        throw new BadRequestError(
+          'Cannot cancel booking because the scheduled showtime has already commenced or passed',
+          'SHOW_ALREADY_STARTED'
+        );
+      }
+
+      // 7. Configurable cancellation cutoff check
+      const cutoffMs = CANCELLATION_CONFIG.CUTOFF_HOURS * 60 * 60 * 1000;
+      if (showStartTime.getTime() - now.getTime() < cutoffMs) {
+        throw new BadRequestError(
+          `Cancellations must be requested at least ${CANCELLATION_CONFIG.CUTOFF_HOURS} hours prior to showtime. Cutoff window has passed.`,
+          'PAST_CANCELLATION_CUTOFF'
+        );
+      }
+
+      // 8. Payment & Refund eligibility
+      const successPayment = booking.payments[0];
+      if (!successPayment) {
+        throw new BadRequestError(
+          'No successful payment record found to process refund',
+          'NO_SUCCESSFUL_PAYMENT'
+        );
+      }
+
+      // Prevent duplicate refunds on repeated cancellation
+      const existingProcessedRefund = booking.refunds.find((r) => r.status === 'PROCESSED');
+      if (existingProcessedRefund) {
+        throw new ConflictError(
+          'A refund has already been processed for this booking',
+          'REFUND_ALREADY_PROCESSED'
+        );
+      }
+
+      // 9. Authoritative refund calculation (never client-supplied)
+      const refundAmount = successPayment.amount;
+      if (Number(refundAmount) > Number(successPayment.amount)) {
+        throw new BadRequestError('Refund amount cannot exceed original payment amount', 'INVALID_REFUND_AMOUNT');
+      }
+
+      const refundReference = generateRefundReference();
+
+      // 10. Create Refund record (CRITICAL: preserve Payment status as SUCCESS)
+      const refund = await tx.refund.create({
+        data: {
+          bookingId: lockedBooking.id,
+          paymentId: successPayment.id,
+          refundReference,
+          amount: refundAmount,
+          status: 'PROCESSED',
+          reason: reason || 'Customer requested full booking cancellation',
+          processedAt: now,
+        },
+      });
+
+      // 11. Transition Booking to CANCELLED
+      await tx.booking.update({
+        where: { id: lockedBooking.id },
+        data: { status: 'CANCELLED' },
+      });
+
+      // 12. Release BookingSeat allocations by setting releasedAt timestamp
+      const showSeatIds = booking.seats.map((s) => s.showSeatId);
+      await tx.bookingSeat.updateMany({
+        where: { bookingId: lockedBooking.id, releasedAt: null },
+        data: { releasedAt: now },
+      });
+
+      // 13. Transition ShowSeat rows back to AVAILABLE and clear hold/booking metadata
+      if (showSeatIds.length > 0) {
+        await tx.showSeat.updateMany({
+          where: { id: { in: showSeatIds } },
+          data: {
+            status: 'AVAILABLE',
+            heldById: null,
+            holdExpiresAt: null,
+          },
+        });
+      }
+
+      // 14. Transition associated Tickets to CANCELLED
+      await tx.ticket.updateMany({
+        where: { bookingId: lockedBooking.id },
+        data: { status: 'CANCELLED' },
+      });
+
+      // 15. Create Audit Log entries in the same transaction
+      await AuditService.log(tx, {
+        actorId: actingUser.id,
+        action: 'BOOKING_CANCELLED',
+        entityType: 'BOOKING',
+        entityId: lockedBooking.id,
+        metadata: {
+          bookingReference: lockedBooking.bookingReference,
+          showId: booking.showId,
+          seatsReleased: showSeatIds.length,
+          refundReference: refund.refundReference,
+          refundAmount: Number(refund.amount),
+          reason: refund.reason,
+        },
+      });
+
+      await AuditService.log(tx, {
+        actorId: actingUser.id,
+        action: 'REFUND_PROCESSED',
+        entityType: 'REFUND',
+        entityId: refund.id,
+        metadata: {
+          bookingId: lockedBooking.id,
+          paymentId: successPayment.id,
+          amount: Number(refund.amount),
+          refundReference: refund.refundReference,
+          status: refund.status,
+        },
+      });
+
+      // Fetch complete updated booking for API response
+      const updatedBooking = await tx.booking.findUnique({
+        where: { id: lockedBooking.id },
+        include: bookingIncludeQuery,
+      });
+
+      return {
+        success: true,
+        message: 'Booking cancelled successfully. Simulated refund processed.',
+        booking: formatBookingResponse(updatedBooking),
+        refund: {
+          id: refund.id,
+          refundReference: refund.refundReference,
+          amount: Number(refund.amount),
+          status: refund.status,
+          reason: refund.reason,
+          processedAt: refund.processedAt,
+        },
+      };
+    });
+  }
+
+  /**
+   * Retrieve refund history for a booking
+   */
+  static async getBookingRefunds(actingUser, bookingId) {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: { id: true, userId: true },
+    });
+
+    if (!booking) {
+      throw new NotFoundError('Booking not found', 'BOOKING_NOT_FOUND');
+    }
+
+    if (actingUser.role === 'CUSTOMER' && booking.userId !== actingUser.id) {
+      throw new ForbiddenError('You are not authorized to view refunds for this booking');
+    }
+
+    const refunds = await prisma.refund.findMany({
+      where: { bookingId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        payment: {
+          select: { id: true, amount: true, paymentMethod: true, transactionReference: true },
+        },
+      },
+    });
+
+    return refunds.map((r) => ({
+      id: r.id,
+      bookingId: r.bookingId,
+      paymentId: r.paymentId,
+      refundReference: r.refundReference,
+      amount: Number(r.amount),
+      status: r.status,
+      reason: r.reason,
+      processedAt: r.processedAt,
+      createdAt: r.createdAt,
+      payment: r.payment
+        ? {
+            id: r.payment.id,
+            amount: Number(r.payment.amount),
+            paymentMethod: r.payment.paymentMethod,
+            transactionReference: r.payment.transactionReference,
+          }
+        : null,
     }));
   }
 }

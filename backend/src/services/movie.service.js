@@ -1,5 +1,6 @@
 import prisma from '../config/database.js';
 import { BadRequestError, NotFoundError } from '../utils/errors.js';
+import { AuditService } from './audit.service.js';
 
 class MovieService {
   /**
@@ -128,7 +129,7 @@ class MovieService {
   /**
    * Create a new movie with genre associations (Admin only).
    */
-  async createMovie(data) {
+  async createMovie(data, user = null) {
     const { genreIds, releaseDate, ...rest } = data;
 
     // 1. Validate that all requested genres exist in database
@@ -163,13 +164,21 @@ class MovieService {
       },
     });
 
+    await AuditService.log(prisma, {
+      actorId: user?.id,
+      action: 'MOVIE_CREATED',
+      entityType: 'MOVIE',
+      entityId: createdMovie.id,
+      metadata: { title: createdMovie.title, language: createdMovie.language },
+    });
+
     return this.formatMovie(createdMovie);
   }
 
   /**
    * Update movie details and synchronize genre associations (Admin only).
    */
-  async updateMovie(id, data) {
+  async updateMovie(id, data, user = null) {
     // 1. Verify movie exists
     const movie = await prisma.movie.findUnique({
       where: { id },
@@ -216,7 +225,7 @@ class MovieService {
         updatePayload.releaseDate = releaseDate ? new Date(releaseDate) : null;
       }
 
-      return tx.movie.update({
+      const updated = await tx.movie.update({
         where: { id },
         data: updatePayload,
         include: {
@@ -227,6 +236,16 @@ class MovieService {
           },
         },
       });
+
+      await AuditService.log(tx, {
+        actorId: user?.id,
+        action: 'MOVIE_UPDATED',
+        entityType: 'MOVIE',
+        entityId: id,
+        metadata: { title: updated.title },
+      });
+
+      return updated;
     });
 
     return this.formatMovie(updatedMovie);
@@ -236,7 +255,7 @@ class MovieService {
    * Soft activation or deactivation of a movie (Admin only).
    * Preserves all shows, bookings, and audit records.
    */
-  async updateMovieStatus(id, isActive) {
+  async updateMovieStatus(id, isActive, user = null) {
     const movie = await prisma.movie.findUnique({
       where: { id },
     });
@@ -255,6 +274,14 @@ class MovieService {
           },
         },
       },
+    });
+
+    await AuditService.log(prisma, {
+      actorId: user?.id,
+      action: 'MOVIE_STATUS_CHANGED',
+      entityType: 'MOVIE',
+      entityId: id,
+      metadata: { title: movie.title, isActive },
     });
 
     return this.formatMovie(updated);

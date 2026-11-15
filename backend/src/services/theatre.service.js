@@ -1,5 +1,6 @@
 import prisma from '../config/database.js';
 import { NotFoundError } from '../utils/errors.js';
+import { AuditService } from './audit.service.js';
 
 export class TheatreService {
   /**
@@ -112,8 +113,8 @@ export class TheatreService {
   /**
    * Admin creates a new theatre
    */
-  static async createTheatre(data) {
-    return prisma.theatre.create({
+  static async createTheatre(data, user = null) {
+    const theatre = await prisma.theatre.create({
       data: {
         name: data.name,
         location: data.location,
@@ -122,18 +123,28 @@ export class TheatreService {
         isActive: true,
       },
     });
+
+    await AuditService.log(prisma, {
+      actorId: user?.id,
+      action: 'THEATRE_CREATED',
+      entityType: 'THEATRE',
+      entityId: theatre.id,
+      metadata: { name: theatre.name, city: theatre.city },
+    });
+
+    return theatre;
   }
 
   /**
    * Admin updates theatre details
    */
-  static async updateTheatre(id, data) {
+  static async updateTheatre(id, data, user = null) {
     const existing = await prisma.theatre.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundError('Theatre not found');
     }
 
-    return prisma.theatre.update({
+    const updated = await prisma.theatre.update({
       where: { id },
       data: {
         ...(data.name !== undefined && { name: data.name }),
@@ -142,21 +153,41 @@ export class TheatreService {
         ...(data.address !== undefined && { address: data.address }),
       },
     });
+
+    await AuditService.log(prisma, {
+      actorId: user?.id,
+      action: 'THEATRE_UPDATED',
+      entityType: 'THEATRE',
+      entityId: id,
+      metadata: { name: updated.name },
+    });
+
+    return updated;
   }
 
   /**
    * Admin activates or deactivates a theatre
    */
-  static async updateTheatreStatus(id, isActive) {
+  static async updateTheatreStatus(id, isActive, user = null) {
     const existing = await prisma.theatre.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundError('Theatre not found');
     }
 
-    return prisma.theatre.update({
+    const updated = await prisma.theatre.update({
       where: { id },
       data: { isActive },
     });
+
+    await AuditService.log(prisma, {
+      actorId: user?.id,
+      action: 'THEATRE_STATUS_CHANGED',
+      entityType: 'THEATRE',
+      entityId: id,
+      metadata: { name: existing.name, isActive },
+    });
+
+    return updated;
   }
 }
 
