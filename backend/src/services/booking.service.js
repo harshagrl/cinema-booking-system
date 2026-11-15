@@ -5,6 +5,7 @@ import {
   ConflictError,
   ForbiddenError,
 } from '../utils/errors.js';
+import { TicketService } from './ticket.service.js';
 
 const bookingIncludeQuery = {
   show: {
@@ -32,6 +33,18 @@ const bookingIncludeQuery = {
   },
   payments: {
     orderBy: { createdAt: 'desc' },
+  },
+  tickets: {
+    include: {
+      bookingSeat: {
+        include: {
+          showSeat: { include: { seat: true } },
+        },
+      },
+      validatedBy: {
+        select: { id: true, name: true, role: true },
+      },
+    },
   },
   user: {
     select: { id: true, name: true, email: true },
@@ -118,6 +131,17 @@ export const formatBookingResponse = (b) => {
     seatSummary: seats.map((s) => `${s.row}${s.seatNumber}`).join(', '),
     payments,
     latestPayment: payments[0] || null,
+    tickets: (b.tickets || []).map((t) => ({
+      id: t.id,
+      ticketNumber: t.ticketNumber,
+      status: t.status,
+      issuedAt: t.issuedAt,
+      validatedAt: t.validatedAt,
+      validatedBy: t.validatedBy ? { name: t.validatedBy.name, role: t.validatedBy.role } : null,
+      seatRow: t.bookingSeat?.showSeat?.seat?.row,
+      seatNumber: t.bookingSeat?.showSeat?.seat?.seatNumber,
+      seatCategory: t.bookingSeat?.showSeat?.seat?.category,
+    })),
   };
 };
 
@@ -455,6 +479,9 @@ export class BookingService {
             data: { status: 'CONSUMED' },
           });
         }
+
+        // Atomically generate individual tickets for each booked seat
+        await TicketService.generateTicketsForBooking(tx, bookingId);
 
         const fullBooking = await tx.booking.findUnique({
           where: { id: bookingId },

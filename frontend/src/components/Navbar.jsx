@@ -1,9 +1,9 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
-import { LogOut, User, Shield, Clapperboard, Film, Building2, Calendar, Ticket } from 'lucide-react';
+import { LogOut, User, Shield, Clapperboard, Film, Building2, Calendar, Ticket, QrCode } from 'lucide-react';
 
 export const Navbar = () => {
-  const { user, isAuthenticated, isAdmin, logout } = useAuth();
+  const { user, isAuthenticated, isAdmin, isStaff, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -57,6 +57,16 @@ export const Navbar = () => {
             >
               <Ticket className="w-4 h-4 text-amber-500" />
               <span>My Bookings</span>
+            </Link>
+          )}
+
+          {isAuthenticated && (isStaff || isAdmin) && (
+            <Link
+              to="/staff/ticket-validation"
+              className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all"
+            >
+              <QrCode className="w-4 h-4 text-emerald-400" />
+              <span>Ticket Scanner</span>
             </Link>
           )}
 

@@ -14,6 +14,7 @@ import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminMoviesPage } from './pages/AdminMoviesPage';
 import { AdminTheatresPage } from './pages/AdminTheatresPage';
 import { AdminShowsPage } from './pages/AdminShowsPage';
+import { StaffTicketValidationPage } from './pages/StaffTicketValidationPage';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
 
 function App() {
@@ -73,6 +74,16 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['ADMIN']}>
                     <AdminShowsPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Staff & Admin Gate Scanner */}
+              <Route
+                path="/staff/ticket-validation"
+                element={
+                  <ProtectedRoute allowedRoles={['STAFF', 'ADMIN']}>
+                    <StaffTicketValidationPage />
                   </ProtectedRoute>
                 }
               />

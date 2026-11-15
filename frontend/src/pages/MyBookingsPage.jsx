@@ -20,6 +20,10 @@ import {
   Film,
   Copy,
   Check,
+  QrCode,
+  Printer,
+  X,
+  Sparkles,
 } from 'lucide-react';
 
 export const MyBookingsPage = () => {
@@ -29,6 +33,11 @@ export const MyBookingsPage = () => {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
   const [copiedRef, setCopiedRef] = useState(null);
+
+  // Digital Ticket Modal State
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [ticketLoading, setTicketLoading] = useState(false);
+  const [copiedToken, setCopiedToken] = useState(false);
 
   // Fetch bookings on initial mount
   useEffect(() => {
@@ -70,11 +79,35 @@ export const MyBookingsPage = () => {
       });
   };
 
+  // Open digital ticket details modal
+  const handleViewTicket = async (ticketId) => {
+    setTicketLoading(true);
+    setSelectedTicket(null);
+    setCopiedToken(false);
+    try {
+      const res = await api.get(`/tickets/${ticketId}`);
+      if (res.success && res.data) {
+        setSelectedTicket(res.data);
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to load ticket details.');
+    } finally {
+      setTicketLoading(false);
+    }
+  };
+
   // Copy booking reference
   const handleCopyRef = (ref) => {
     navigator.clipboard?.writeText(ref);
     setCopiedRef(ref);
     setTimeout(() => setCopiedRef(null), 2000);
+  };
+
+  // Copy verification token
+  const handleCopyToken = (token) => {
+    navigator.clipboard?.writeText(token);
+    setCopiedToken(true);
+    setTimeout(() => setCopiedToken(false), 2000);
   };
 
   // Filter bookings based on activeTab
@@ -148,10 +181,10 @@ export const MyBookingsPage = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-slate-950 text-slate-100 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[calc(100vh-4rem)] bg-slate-950 text-slate-100 py-8 px-4 sm:px-6 lg:px-8 print:p-0 print:bg-white print:text-black">
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
+        {/* Page Header (hidden during print) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-6 print:hidden">
           <div>
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
@@ -162,7 +195,7 @@ export const MyBookingsPage = () => {
               </h1>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              View your confirmed reservations, ticket references, and transaction histories.
+              View your confirmed reservations, ticket references, and QR admission codes.
             </p>
           </div>
 
@@ -185,8 +218,8 @@ export const MyBookingsPage = () => {
           </div>
         </div>
 
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+        {/* Filter Tabs (hidden during print) */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin print:hidden">
           {[
             { id: 'all', label: 'All Bookings' },
             { id: 'upcoming', label: 'Upcoming Shows' },
@@ -210,7 +243,7 @@ export const MyBookingsPage = () => {
 
         {/* Content Area */}
         {loading ? (
-          <div className="grid gap-4">
+          <div className="grid gap-4 print:hidden">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
@@ -226,7 +259,7 @@ export const MyBookingsPage = () => {
             ))}
           </div>
         ) : error ? (
-          <div className="p-8 rounded-3xl bg-red-950/30 border border-red-800/60 text-center space-y-4 max-w-lg mx-auto">
+          <div className="p-8 rounded-3xl bg-red-950/30 border border-red-800/60 text-center space-y-4 max-w-lg mx-auto print:hidden">
             <AlertCircle className="w-10 h-10 text-red-400 mx-auto" />
             <div>
               <h3 className="text-base font-bold text-white">Could not load bookings</h3>
@@ -240,7 +273,7 @@ export const MyBookingsPage = () => {
             </button>
           </div>
         ) : filteredBookings.length === 0 ? (
-          <div className="p-12 rounded-3xl bg-slate-900/50 border border-slate-800/80 text-center space-y-4 max-w-md mx-auto my-8">
+          <div className="p-12 rounded-3xl bg-slate-900/50 border border-slate-800/80 text-center space-y-4 max-w-md mx-auto my-8 print:hidden">
             <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center text-slate-500 mx-auto">
               <Ticket className="w-8 h-8" />
             </div>
@@ -265,7 +298,7 @@ export const MyBookingsPage = () => {
             {filteredBookings.map((b) => (
               <div
                 key={b.id}
-                className="p-5 sm:p-6 rounded-3xl bg-slate-900/80 border border-slate-800/90 hover:border-slate-700 transition-all shadow-xl space-y-5"
+                className="p-5 sm:p-6 rounded-3xl bg-slate-900/80 border border-slate-800/90 hover:border-slate-700 transition-all shadow-xl space-y-5 print:border-black print:shadow-none"
               >
                 {/* Top Row: Reference, Status Badge & Timestamp */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/70 pb-4">
@@ -337,18 +370,63 @@ export const MyBookingsPage = () => {
                       </span>
                     </div>
 
-                    {/* Seats Pill List */}
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                      <span className="text-xs text-slate-400 mr-1 font-medium">Seats:</span>
-                      {b.seats?.map((seat) => (
-                        <span
-                          key={seat.bookingSeatId}
-                          className="px-2 py-0.5 rounded-md bg-slate-950 border border-slate-800 text-[11px] font-semibold text-slate-200"
-                        >
-                          {seat.row}
-                          {seat.seatNumber} ({seat.category}) • ₹{seat.price}
-                        </span>
-                      ))}
+                    {/* Seats & Individual Digital Tickets List */}
+                    <div className="space-y-2 pt-2">
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+                        <span>Admission Tickets ({b.tickets?.length || b.seats?.length}):</span>
+                      </div>
+
+                      {b.tickets && b.tickets.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {b.tickets.map((t) => (
+                            <div
+                              key={t.id}
+                              className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between gap-3 text-xs"
+                            >
+                              <div>
+                                <span className="font-mono text-amber-400 font-bold block text-[11px]">
+                                  {t.ticketNumber}
+                                </span>
+                                <span className="text-slate-300 text-[11px]">
+                                  Seat <strong>{t.seatRow}{t.seatNumber}</strong> ({t.seatCategory || 'REGULAR'})
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                    t.status === 'VALID'
+                                      ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                                      : 'bg-zinc-800 text-zinc-400'
+                                  }`}
+                                >
+                                  {t.status}
+                                </span>
+
+                                <button
+                                  onClick={() => handleViewTicket(t.id)}
+                                  className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                >
+                                  <QrCode className="w-3 h-3" />
+                                  <span>View QR</span>
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {b.seats?.map((seat) => (
+                            <span
+                              key={seat.bookingSeatId}
+                              className="px-2 py-0.5 rounded-md bg-slate-950 border border-slate-800 text-[11px] font-semibold text-slate-200"
+                            >
+                              {seat.row}
+                              {seat.seatNumber} ({seat.category}) • ₹{seat.price}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -386,8 +464,8 @@ export const MyBookingsPage = () => {
                       </div>
                     )}
 
-                    {/* If pending payment and hold is active, allow completing checkout */}
-                    {b.status === 'PENDING_PAYMENT' && (
+                    {/* Actions */}
+                    {b.status === 'PENDING_PAYMENT' ? (
                       <button
                         onClick={() => navigate(`/shows/${b.show?.id}/seats`)}
                         className="w-full px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 cursor-pointer"
@@ -395,11 +473,164 @@ export const MyBookingsPage = () => {
                         <CreditCard className="w-3.5 h-3.5" />
                         <span>Complete Payment</span>
                       </button>
+                    ) : (
+                      b.status === 'CONFIRMED' &&
+                      b.tickets &&
+                      b.tickets.length > 0 && (
+                        <button
+                          onClick={() => handleViewTicket(b.tickets[0].id)}
+                          className="w-full px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          <span>View Digital Ticket</span>
+                        </button>
+                      )
                     )}
                   </div>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Digital Ticket Presentation Modal (Perforated Cinema Stub) */}
+        {(selectedTicket || ticketLoading) && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-6 sm:p-7 space-y-6 shadow-2xl relative my-8 print:m-0 print:border-none print:shadow-none print:p-0">
+              {ticketLoading ? (
+                <div className="py-12 flex flex-col items-center justify-center space-y-3">
+                  <RefreshCw className="w-8 h-8 text-amber-500 animate-spin" />
+                  <p className="text-xs text-slate-400">Loading digital admission pass...</p>
+                </div>
+              ) : selectedTicket ? (
+                <>
+                  {/* Modal Header */}
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 print:hidden">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-amber-500" />
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-300">
+                        Official Admission Ticket
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setSelectedTicket(null)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Cinema Ticket Card (Stylized Admission Stub) */}
+                  <div className="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl relative">
+                    {/* Top Perforated Notch Left/Right */}
+                    <div className="relative p-5 border-b border-dashed border-slate-800">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[10px] uppercase font-black text-amber-400 tracking-widest block">
+                            Algions Cineplex
+                          </span>
+                          <h3 className="text-base font-black text-white mt-0.5">
+                            {selectedTicket.movie?.title}
+                          </h3>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {selectedTicket.theatre?.name} • {selectedTicket.screen?.name} ({selectedTicket.show?.format})
+                          </p>
+                        </div>
+                        <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-extrabold text-amber-300">
+                          {selectedTicket.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Middle Section: QR Code & Verification Token */}
+                    <div className="p-6 flex flex-col items-center justify-center space-y-3 bg-white text-slate-950">
+                      <div className="w-52 h-52 bg-white p-2 rounded-xl border border-slate-200 flex items-center justify-center shadow-inner">
+                        {selectedTicket.qrCode ? (
+                          <img
+                            src={selectedTicket.qrCode}
+                            alt="Ticket QR Code"
+                            className="w-full h-full object-contain"
+                          />
+                        ) : (
+                          <QrCode className="w-24 h-24 text-slate-400" />
+                        )}
+                      </div>
+
+                      <div className="text-center space-y-1">
+                        <span className="text-[10px] font-mono uppercase font-bold text-slate-500 tracking-wider block">
+                          Ticket No: {selectedTicket.ticketNumber}
+                        </span>
+                        <p className="text-[10px] text-slate-600 max-w-[220px]">
+                          Present this digital QR pass to the theatre gate staff upon entry.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Bottom Perforated Stub: Seat and Showtime Breakdown */}
+                    <div className="p-5 bg-slate-950 border-t border-dashed border-slate-800 space-y-3 text-xs">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">
+                            Showtime
+                          </span>
+                          <span className="font-bold text-white text-[11px]">
+                            {formatDate(selectedTicket.show?.startTime)}
+                          </span>
+                          <span className="block text-[11px] text-amber-400 font-semibold">
+                            {formatTime(selectedTicket.show?.startTime)}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">
+                            Seat Allocation
+                          </span>
+                          <span className="font-black text-amber-400 text-sm">
+                            Row {selectedTicket.seat?.row}, Seat {selectedTicket.seat?.seatNumber}
+                          </span>
+                          <span className="block text-[10px] text-slate-400">
+                            {selectedTicket.seat?.category} • ₹{selectedTicket.seat?.price}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Token Copy Action for Manual Entry Testing */}
+                      <div className="pt-2 border-t border-slate-900 flex items-center justify-between text-[11px] text-slate-400">
+                        <span className="truncate max-w-[180px] font-mono text-[10px] text-slate-500">
+                          Token: {selectedTicket.qrToken ? `${selectedTicket.qrToken.slice(0, 16)}...` : 'N/A'}
+                        </span>
+                        {selectedTicket.qrToken && (
+                          <button
+                            onClick={() => handleCopyToken(selectedTicket.qrToken)}
+                            className="flex items-center gap-1 text-[10px] font-bold text-amber-400 hover:text-amber-300 cursor-pointer"
+                          >
+                            {copiedToken ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                            <span>{copiedToken ? 'Copied Token' : 'Copy Token'}</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Modal Action Controls (Print & Close) */}
+                  <div className="flex gap-3 pt-2 print:hidden">
+                    <button
+                      onClick={() => window.print()}
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Printer className="w-4 h-4" />
+                      <span>Print Ticket</span>
+                    </button>
+                    <button
+                      onClick={() => setSelectedTicket(null)}
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-all shadow-md shadow-amber-500/20 cursor-pointer"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </>
+              ) : null}
+            </div>
           </div>
         )}
       </div>

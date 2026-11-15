@@ -627,6 +627,14 @@ async function runTests() {
     // Teardown: Clean up test data
     // -------------------------------------------------------------------------
     try {
+      // Delete tickets
+      await prisma.ticket.deleteMany({
+        where: {
+          booking: {
+            show: { screen: { theatreId: testTheatreId } },
+          },
+        },
+      });
       // Delete payments
       await prisma.payment.deleteMany({
         where: {

@@ -56,6 +56,13 @@ enum RefundStatus {
   FAILED
 }
 
+enum TicketStatus {
+  VALID
+  USED
+  CANCELLED
+  EXPIRED
+}
+
 model User {
   id        String   @id @default(uuid())
   name      String
@@ -65,11 +72,12 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  bookings    Booking[]
-  heldSeats   ShowSeat[]         @relation("SeatHolder")
-  seatHolds   SeatHold[]
-  validations TicketValidation[] @relation("TicketValidator")
-  auditLogs   AuditLog[]
+  bookings         Booking[]
+  heldSeats        ShowSeat[]         @relation("SeatHolder")
+  seatHolds        SeatHold[]
+  validations      TicketValidation[] @relation("TicketValidator")
+  validatedTickets Ticket[]           @relation("StaffTicketValidator")
+  auditLogs        AuditLog[]
 }
 
 model Movie {
@@ -227,6 +235,7 @@ model Booking {
   seats      BookingSeat[]
   payments   Payment[]
   refunds    Refund[]
+  tickets    Ticket[]
   validation TicketValidation?
 
   @@index([userId, createdAt])
@@ -242,9 +251,31 @@ model BookingSeat {
 
   booking  Booking  @relation(fields: [bookingId], references: [id])
   showSeat ShowSeat @relation(fields: [showSeatId], references: [id])
+  ticket   Ticket?
 
   @@index([bookingId])
   @@index([showSeatId])
+}
+
+model Ticket {
+  id            String       @id @default(uuid())
+  ticketNumber  String       @unique
+  bookingId     String
+  bookingSeatId String       @unique
+  qrTokenHash   String       @unique
+  status        TicketStatus @default(VALID)
+  issuedAt      DateTime     @default(now())
+  validatedAt   DateTime?
+  validatedById String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @default(now()) @updatedAt
+
+  booking     Booking     @relation(fields: [bookingId], references: [id])
+  bookingSeat BookingSeat @relation(fields: [bookingSeatId], references: [id])
+  validatedBy User?       @relation("StaffTicketValidator", fields: [validatedById], references: [id])
+
+  @@index([bookingId])
+  @@index([status])
 }
 
 model Payment {

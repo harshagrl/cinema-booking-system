@@ -8,6 +8,7 @@ import screenRoutes from './screen.routes.js';
 import showRoutes from './show.routes.js';
 import holdRoutes from './hold.routes.js';
 import bookingRoutes from './booking.routes.js';
+import ticketRoutes from './ticket.routes.js';
 
 const router = Router();
 
@@ -21,5 +22,6 @@ router.use('/screens', screenRoutes);
 router.use('/shows', showRoutes);
 router.use('/holds', holdRoutes);
 router.use('/bookings', bookingRoutes);
+router.use('/tickets', ticketRoutes);
 
 export default router;
