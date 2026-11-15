@@ -115,13 +115,18 @@ export const SeatSelectionPage = () => {
         if (!isMounted) return;
         if (res.success && res.data) {
           setLayoutData(res.data);
+        } else {
+          setError(res.message || 'Failed to load seat layout.');
         }
       })
       .catch((err) => {
-        if (!isMounted) setError(err.message || 'Failed to load seat layout.');
+        if (!isMounted) return;
+        setError(err.message || 'Failed to load seat layout.');
       })
       .finally(() => {
-        if (!isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       });
 
     return () => {
@@ -344,7 +349,7 @@ export const SeatSelectionPage = () => {
   };
 
   // Total calculation for current selection
-  const selectionTotal = selectedSeats.reduce((sum, s) => sum + s.price, 0);
+  const selectionTotal = selectedSeats.reduce((sum, s) => sum + (Number(s.price) || 0), 0);
 
   if (loading) {
     return (
@@ -357,7 +362,7 @@ export const SeatSelectionPage = () => {
     );
   }
 
-  if (error || !layoutData) {
+  if (error || !layoutData || !layoutData.show) {
     return (
       <div className="min-h-[calc(100vh-4rem)] bg-slate-950 flex flex-col items-center justify-center p-6 text-slate-100">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
@@ -380,7 +385,26 @@ export const SeatSelectionPage = () => {
     );
   }
 
-  const { show, rows, categoryPricing } = layoutData;
+  const show = layoutData.show || {};
+  const categoryPricing = layoutData.categoryPricing || {};
+  const rows = Array.isArray(layoutData.rows)
+    ? layoutData.rows
+    : Array.isArray(layoutData.seats)
+    ? (() => {
+        const grouped = {};
+        for (const seat of layoutData.seats) {
+          const r = seat.row || 'A';
+          if (!grouped[r]) grouped[r] = [];
+          grouped[r].push(seat);
+        }
+        return Object.keys(grouped)
+          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+          .map((r) => ({
+            row: r,
+            seats: grouped[r].sort((a, b) => a.seatNumber - b.seatNumber),
+          }));
+      })()
+    : [];
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-950 text-slate-100 py-6 px-4 sm:px-6 lg:px-8">
@@ -389,7 +413,7 @@ export const SeatSelectionPage = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-5">
           <div className="flex items-center gap-4">
             <Link
-              to={`/movies/${show.movie.id}`}
+              to={`/movies/${show.movie?.id || ''}`}
               className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
               title="Back to Movie Details"
             >
@@ -399,23 +423,23 @@ export const SeatSelectionPage = () => {
             <div>
               <div className="flex items-center gap-2.5">
                 <h1 className="text-xl sm:text-2xl font-extrabold text-white">
-                  {show.movie.title}
+                  {show.movie?.title}
                 </h1>
                 <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-extrabold text-xs border border-amber-500/40">
                   {show.format}
                 </span>
                 <span className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 text-[11px] font-semibold border border-slate-700">
-                  {show.movie.rating || 'UA'}
+                  {show.movie?.rating || 'UA'}
                 </span>
               </div>
 
               <p className="text-xs text-slate-400 flex flex-wrap items-center gap-2 mt-1">
                 <span className="flex items-center gap-1 font-medium text-slate-300">
                   <MapPin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                  {show.theatre.name} ({show.theatre.city})
+                  {show.theatre?.name} ({show.theatre?.city})
                 </span>
                 <span>•</span>
-                <span>{show.screen.name}</span>
+                <span>{show.screen?.name}</span>
                 <span>•</span>
                 <span className="flex items-center gap-1 font-semibold text-amber-400">
                   <Clock className="w-3.5 h-3.5 text-amber-500" />
@@ -472,7 +496,7 @@ export const SeatSelectionPage = () => {
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 mt-0.5">
-                  Held <strong>{activeHold.seats.length} seat(s)</strong>: {activeHold.seats.map((s) => `${s.row}${s.seatNumber}`).join(', ')} • Total: <strong className="text-amber-300">₹{activeHold.totalAmount}</strong>
+                  Held <strong>{activeHold.seats?.length || 0} seat(s)</strong>: {(activeHold.seats || []).map((s) => `${s.row}${s.seatNumber}`).join(', ')} • Total: <strong className="text-amber-300">₹{activeHold.totalAmount}</strong>
                 </p>
               </div>
             </div>
@@ -604,7 +628,7 @@ export const SeatSelectionPage = () => {
 
             {/* Category Pricing Legend */}
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2 text-xs">
-              {Object.entries(categoryPricing).map(([cat, pr]) => (
+              {Object.entries(categoryPricing || {}).map(([cat, pr]) => (
                 <span
                   key={cat}
                   className="px-2.5 py-1 rounded-lg bg-slate-950/80 border border-slate-800 text-slate-300 text-[11px]"
@@ -620,16 +644,16 @@ export const SeatSelectionPage = () => {
             <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-6 shadow-2xl backdrop-blur-md">
               <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
                 <img
-                  src={show.movie.posterUrl || FALLBACK_POSTER}
-                  alt={show.movie.title}
+                  src={show.movie?.posterUrl || FALLBACK_POSTER}
+                  alt={show.movie?.title || 'Movie'}
                   className="w-12 h-16 object-cover rounded-xl border border-slate-800 bg-slate-950 shrink-0"
                 />
                 <div>
                   <h3 className="text-sm font-bold text-white line-clamp-1">
-                    {show.movie.title}
+                    {show.movie?.title}
                   </h3>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    {formatDuration(show.movie.duration)} • {show.format}
+                    {formatDuration(show.movie?.duration)} • {show.format}
                   </p>
                   <p className="text-[10px] text-amber-400 font-semibold mt-0.5">
                     {formatTime(show.startTime)} • {formatDate(show.startTime)}
