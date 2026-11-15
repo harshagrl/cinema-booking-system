@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import theatreController from '../controllers/theatre.controller.js';
 import screenController from '../controllers/screen.controller.js';
+import showController from '../controllers/show.controller.js';
 import { validate } from '../validators/auth.validator.js';
 import {
   createTheatreSchema,
@@ -50,6 +51,11 @@ router.patch(
 // Nested screen routes under theatre
 router.get('/:theatreId/screens', optionalAuthenticate, (req, res, next) =>
   screenController.getScreensByTheatre(req, res, next)
+);
+
+// Customer showtimes discovery for theatre
+router.get('/:theatreId/shows', optionalAuthenticate, (req, res, next) =>
+  showController.getTheatreShows(req, res, next)
 );
 
 router.post(

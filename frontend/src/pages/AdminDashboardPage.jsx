@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import api from '../services/api';
-import { Shield, CheckCircle2, UserCheck, AlertCircle, RefreshCw, Key, Film, Building2 } from 'lucide-react';
+import { Shield, CheckCircle2, UserCheck, AlertCircle, RefreshCw, Key, Film, Building2, Calendar } from 'lucide-react';
 
 export const AdminDashboardPage = () => {
   const { user } = useAuth();
@@ -134,7 +134,7 @@ export const AdminDashboardPage = () => {
         </div>
 
         {/* Quick Management Navigation Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Link
             to="/admin/movies"
             className="p-5 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-2xl transition-all group flex items-start gap-4 shadow-lg"
@@ -168,13 +168,30 @@ export const AdminDashboardPage = () => {
               </p>
             </div>
           </Link>
+
+          <Link
+            to="/admin/shows"
+            className="p-5 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-2xl transition-all group flex items-start gap-4 shadow-lg"
+          >
+            <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 group-hover:scale-105 transition-transform">
+              <Calendar className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white group-hover:text-amber-400 transition-colors">
+                Showtime Scheduling
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Plan screenings, manage show timings, avoid screen overlaps, and set seat pricing.
+              </p>
+            </div>
+          </Link>
         </div>
 
         {/* Next Phases Notice */}
         <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-5 text-xs text-slate-400 space-y-1">
           <p className="font-semibold text-slate-300">Upcoming Administrative Modules:</p>
           <p>
-            Cinema hall and movie management functions (Phase 3 & 4), show scheduling (Phase 5), and financial reporting (Phase 11) will be integrated directly into this administrative layout.
+            Interactive seat selection and temporary seat holds (Phase 6 &amp; 7), payment processing (Phase 8), and ticket validation reports (Phase 10 &amp; 11) will be integrated next.
           </p>
         </div>
       </div>

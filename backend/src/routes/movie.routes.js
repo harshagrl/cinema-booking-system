@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import movieController from '../controllers/movie.controller.js';
+import showController from '../controllers/show.controller.js';
 import { validate } from '../validators/auth.validator.js';
 import {
   createMovieSchema,
@@ -18,6 +19,11 @@ router.get('/', optionalAuthenticate, (req, res, next) =>
 
 router.get('/:id', optionalAuthenticate, (req, res, next) =>
   movieController.getMovieById(req, res, next)
+);
+
+// Customer showtimes discovery for movie
+router.get('/:movieId/shows', optionalAuthenticate, (req, res, next) =>
+  showController.getMovieShows(req, res, next)
 );
 
 // Admin-protected mutation routes
