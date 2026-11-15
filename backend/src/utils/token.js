@@ -32,7 +32,7 @@ export const getCookieOptions = () => {
   return {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? 'strict' : 'lax',
+    sameSite: isProduction ? (process.env.COOKIE_SAME_SITE || 'strict') : 'lax',
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     path: '/',
   };
@@ -47,7 +47,7 @@ export const getClearCookieOptions = () => {
   return {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? 'strict' : 'lax',
+    sameSite: isProduction ? (process.env.COOKIE_SAME_SITE || 'strict') : 'lax',
     path: '/',
   };
 };

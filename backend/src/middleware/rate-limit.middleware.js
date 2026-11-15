@@ -53,6 +53,21 @@ export const createRateLimiter = ({
 };
 
 /**
+ * Periodic cleanup of expired rate limit entries to prevent memory leaks.
+ */
+if (typeof setInterval !== 'undefined') {
+  const cleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [ip, record] of rateLimitStore.entries()) {
+      if (now > record.resetTime) {
+        rateLimitStore.delete(ip);
+      }
+    }
+  }, 30 * 60 * 1000);
+  if (cleanupTimer.unref) cleanupTimer.unref(); // Ensure timer does not prevent graceful Node exit
+}
+
+/**
  * Pre-configured rate limiter for login attempts (5 attempts per 15 minutes).
  */
 export const loginRateLimiter = createRateLimiter({

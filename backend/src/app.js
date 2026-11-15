@@ -11,9 +11,20 @@ const app = express();
 // Security headers
 app.use(helmet());
 
+// Parse allowed origins for CORS
+const rawCorsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+const allowedOrigins = rawCorsOrigin.split(',').map((o) => o.trim());
+
 // CORS configuration (enables credentials for HTTP-only cookies)
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
+    if (allowedOrigins.includes(origin) || (process.env.NODE_ENV !== 'production' && isLocalhost)) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  },
   credentials: true,
 }));
 

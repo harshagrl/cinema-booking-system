@@ -39,12 +39,13 @@ export const csrfProtection = (req, res, next) => {
 
   const origin = req.headers.origin;
   const referer = req.headers.referer;
-  const trustedOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+  const rawTrusted = process.env.CORS_ORIGIN || 'http://localhost:5173';
+  const trustedOrigins = rawTrusted.split(',').map((o) => o.trim());
 
-  // If origin is provided, verify it matches the trusted origin or local development host
+  // If origin is provided, verify it matches the trusted origins or local development host
   if (origin) {
     const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
-    const isTrusted = origin === trustedOrigin || (process.env.NODE_ENV !== 'production' && isLocalhost);
+    const isTrusted = trustedOrigins.includes(origin) || (process.env.NODE_ENV !== 'production' && isLocalhost);
 
     if (!isTrusted) {
       return res.status(403).json({
